@@ -120,7 +120,7 @@ async function getAndUpdateWateringAlert() {
             shouldFetchFromCaseyTrees = isDataStale(data.lastUpdated);
         }
 
-        // If data is stale or doesn't exist, fetch from Casey Trees
+        // If data is stale (>24h old) or doesn't exist, fetch fresh data from Casey Trees
         if (shouldFetchFromCaseyTrees) {
             try {
                 await fetchAndStoreCaseyTreesAlert();

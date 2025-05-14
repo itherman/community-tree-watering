@@ -15,15 +15,12 @@ A web application for managing community tree watering, featuring integration wi
 │   ├── 404.html          # Error page
 │   ├── no-trees-map.png  # Empty map background
 │   └── new-tree-map.png  # Tree map background image
-├── functions/             # Firebase Cloud Functions
-│   ├── index.js          # Backend functions
-│   └── package.json      # Backend dependencies
 └── firebase.json         # Firebase configuration
 ```
 
 ## Key Features
 1. Interactive tree map showing all community trees
-2. Casey Trees watering alert integration
+2. Client-side Casey Trees watering alert integration with caching
 3. Anonymous authentication for tree watering updates
 4. Thirsty trees list based on watering history
 5. Firebase backend with Firestore database
@@ -59,7 +56,6 @@ A web application for managing community tree watering, featuring integration wi
 - Project: community-tree-watering
 - Services: 
   - Hosting (public directory)
-  - Cloud Functions (Node.js)
   - Firestore Database
   - Anonymous Authentication
 - Configuration files:
@@ -69,17 +65,15 @@ A web application for managing community tree watering, featuring integration wi
 
 ## Development Notes
 1. The frontend uses vanilla JavaScript with Firebase SDK
-2. Backend scrapes Casey Trees website for watering alerts
+2. Client-side watering alert fetching with 24-hour cache
 3. Tree map uses custom coordinates system with image overlay
 4. Anonymous authentication enables user interaction without accounts
 5. Responsive design with mobile-first approach
-6. Node.js backend with Express for Cloud Functions
-7. User guide available at /how_to_use.html
-8. Separate map views for trees and empty state
+6. User guide available at /how_to_use.html
+7. Separate map views for trees and empty state
 
 ## TODO
-1. Implement scheduled watering alert updates
-2. Add email notifications for thirsty trees
-3. Enhance tree map with filtering options
-4. Add tree health monitoring features
-5. Implement user roles and permissions 
+1. Add email notifications for thirsty trees
+2. Enhance tree map with filtering options
+3. Add tree health monitoring features
+4. Implement user roles and permissions 
