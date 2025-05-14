@@ -7,6 +7,16 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
     <style>
+        body {
+            position: relative;
+            padding-top: 20px;
+        }
+
+        header {
+            position: relative;
+            z-index: 1;
+        }
+
         .help-section {
             max-width: 800px;
             margin: 2rem auto;
@@ -14,6 +24,27 @@
             background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow);
+            position: relative;
+        }
+
+        /* Position home button */
+        .home-button {
+            position: static !important;
+            float: right !important;
+            margin: 1rem 2rem 2rem !important;
+            background: white !important;
+            box-shadow: var(--shadow) !important;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding-top: 15px;
+            }
+            
+            .help-section {
+                margin: 1.5rem 1rem;
+                padding: 1.5rem;
+            }
         }
 
         .help-section h2 {
@@ -86,6 +117,11 @@
     </header>
 
     <div class="help-section">
+        <button onclick="window.location.href='index.html'" class="home-button">
+            <span class="material-icons">arrow_back</span>
+            Back to Home
+        </button>
+
         <h2>
             <span class="material-icons">info</span>
             About Grove Guardian
@@ -142,11 +178,6 @@
             <p>Add trees you regularly pass by to "My Grove" for quick access and monitoring. This helps ensure no tree goes too long without water.</p>
         </div>
     </div>
-
-    <button onclick="window.location.href='index.html'" class="home-button">
-        <span class="material-icons">arrow_back</span>
-        Back to Home
-    </button>
 
     <footer>
         <div class="content">
