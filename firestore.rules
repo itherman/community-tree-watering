@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow anonymous users to read and write to the watering alert
+    match /site_config/watering_alert {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.time.dayOfWeek == 1  // Monday only
+                   && request.time.hours >= 17;    // After 5pm
+    }
+    
+    // Allow anonymous users to read all trees and write to lastWateredDate
+    match /trees/{treeId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+                   && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastWateredDate']);
+    }
+  }
+} 

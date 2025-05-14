@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CCC Tree Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
+  <style>
+    html,body {margin:0;padding:0;height:100%;}
+    #map {width:100%;height:100%;}
+    
+    /* Styles for watering slider */
+    .watering-slider-container {
+      margin-top: 10px;
+    }
+    
+    .slider-label {
+      color: #666;
+      font-size: 0.9em;
+      display: block;
+      margin-bottom: 10px;
+    }
+    
+    .slider-wrapper {
+      position: relative;
+      height: 20px;
+      background: #e3f2fd;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 10px 0;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .watering-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 20px;
+      background: transparent;
+      outline: none;
+      margin: 0;
+      position: relative;
+      z-index: 2;
+    }
+    
+    .slider-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg,
+        #2196f3 0%,
+        #64b5f6 50%,
+        #2196f3 100%
+      );
+      background-size: 200% 100%;
+      border-radius: 10px;
+      transition: width 0.1s ease;
+      animation: waterFlow 2s linear infinite;
+      z-index: 1;
+      box-shadow: 0 0 10px rgba(33, 150, 243, 0.3);
+    }
+    
+    @keyframes waterFlow {
+      0% {
+        background-position: 100% 0;
+      }
+      100% {
+        background-position: -100% 0;
+      }
+    }
+    
+    /* Webkit (Chrome, Safari) */
+    .watering-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #2196f3;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      margin-top: -4px;
+      position: relative;
+      z-index: 3;
+      transition: transform 0.2s ease;
+    }
+    
+    .watering-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+    
+    /* Firefox */
+    .watering-slider::-moz-range-thumb {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #2196f3;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      position: relative;
+      z-index: 3;
+      transition: transform 0.2s ease;
+    }
+    
+    .watering-slider::-moz-range-thumb:hover {
+      transform: scale(1.1);
+    }
+    
+    .confirmation-text {
+      color: #2196f3;
+      font-weight: bold;
+      margin: 10px 0 5px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      height: 20px;
+    }
+    
+    .confirmation-text.visible {
+      opacity: 1;
+    }
+    
+    .last-watered {
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    /* Ripple effect for successful update */
+    @keyframes ripple {
+      0% {
+        box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.3);
+      }
+      100% {
+        box-shadow: 0 0 0 20px rgba(33, 150, 243, 0);
+      }
+    }
+
+    .slider-success .slider-fill {
+      animation: ripple 1s ease-out;
+    }
+
+    /* Back to Home Button Styles */
+    .home-button {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      background: white;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: sans-serif;
+      font-size: 16px;
+      color: #673ab7;
+      transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    .home-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        45deg,
+        rgba(103, 58, 183, 0.1),
+        rgba(103, 58, 183, 0.05)
+      );
+      transform: scaleX(0);
+      transform-origin: right;
+      transition: transform 0.3s ease;
+    }
+
+    .home-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(103, 58, 183, 0.2);
+    }
+
+    .home-button:hover::before {
+      transform: scaleX(1);
+      transform-origin: left;
+    }
+
+    .home-button .material-icons {
+      font-size: 24px;
+      transition: transform 0.3s ease;
+    }
+
+    .home-button:hover .material-icons {
+      transform: translateX(-4px);
+    }
+
+    .home-button .tree-icon {
+      position: absolute;
+      right: -24px;
+      opacity: 0;
+      transition: all 0.3s ease;
+      color: #81c784;
+    }
+
+    .home-button:hover .tree-icon {
+      right: 16px;
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      .home-button {
+        top: 10px;
+        right: 10px;
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+    }
+
+    /* Tree marker styles */
+    .leaflet-marker-icon {
+      filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
+    }
+
+    /* Custom tree marker */
+    .tree-marker {
+      width: 24px;
+      height: 24px;
+      position: relative;
+    }
+
+    .tree-marker::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      background: #2d5a27;
+      border-radius: 50% 50% 50% 50%;
+      transform: translate(-50%, -50%) rotate(45deg);
+      box-shadow: 
+        2px 2px 0 #1b3619,
+        -2px -2px 0 #3d7a35;
+    }
+
+    .tree-marker::after {
+      content: '';
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      width: 6px;
+      height: 6px;
+      background: #5d4037;
+      border-radius: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Add styles for the tree dots */
+    .tree-dot {
+      filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+      cursor: pointer;
+    }
+    
+    /* Increase clickable area with padding */
+    .leaflet-interactive.tree-dot {
+      padding: 10px !important;
+      margin: -10px !important;
+    }
+    
+    .tree-trunk {
+      transform: translateY(6px);
+      pointer-events: none;  /* Ensure trunk doesn't interfere with clicking */
+    }
+
+    /* Highlight animation for selected tree */
+    @keyframes highlightPulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 15px rgba(255, 235, 59, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 235, 59, 0);
+      }
+    }
+
+    .highlight-marker {
+      animation: highlightPulse 0.75s ease-out 3;
+    }
+  </style>
+</head>
+<body>
+<button onclick="window.location.href='index.html'" class="home-button">
+  <span class="material-icons">arrow_back</span>
+  Back to Home
+</button>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import { auth, db, signInAnonymously } from './firebase-init.js';
+import { doc, updateDoc, Timestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+
+const mapW=1277, mapH=934; // Dimensions for no-trees-map.png
+const map = L.map('map', { 
+  crs: L.CRS.Simple, 
+  minZoom: -0.5,
+  maxZoom: 4, 
+  zoomSnap: 0.25,
+  zoomDelta: 0.25,
+  wheelPxPerZoomLevel: 120,
+  maxBounds: [[0,0], [mapH,mapW]],
+  maxBoundsViscosity: 1.0
+});
+const bounds = [[0,0],[mapH,mapW]];
+L.imageOverlay('no-trees-map.png', bounds).addTo(map);
+map.setView([mapH/2, mapW/2], 0);
+
+// Function to format date
+function formatDate(date) {
+  if (!date) return 'Never';
+  if (date.toDate) date = date.toDate(); // Handle Firestore Timestamp
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// Function to update watering status
+async function updateTreeWatering(treeId) {
+  try {
+    const treeRef = doc(db, "trees", treeId);
+    await updateDoc(treeRef, {
+      lastWateredDate: Timestamp.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating tree watering:", error);
+    return false;
+  }
+}
+
+// Check for tree parameter in URL
+const urlParams = new URLSearchParams(window.location.search);
+const selectedTreeId = urlParams.get('tree');
+let selectedMarker = null;
+
+console.log('Selected Tree ID:', selectedTreeId);
+
+// Wait for map to be ready and fetch tree data
+map.whenReady(async () => {
+  try {
+    const treesSnapshot = await getDocs(collection(db, "trees"));
+    
+    treesSnapshot.forEach(doc => {
+      const tree = doc.data();
+      const treeId = doc.id;
+      const latlng = [tree.mapCoordinates.y, tree.mapCoordinates.x];
+      
+      // Log the comparison for debugging
+      console.log('Comparing:', treeId, selectedTreeId);
+      
+      const popupContent = document.createElement('div');
+      popupContent.innerHTML = `
+        <strong>${tree.commonName || 'Tree'}</strong><br/>
+        Scientific name: ${tree.botanicalName || '–'}<br/>
+        <div class="last-watered">Last watered: <span id="last-watered-${treeId}">${formatDate(tree.lastWateredDate)}</span></div>
+        <div class="watering-slider-container">
+          <span class="slider-label">Slide to confirm watering</span>
+          <div class="slider-wrapper">
+            <div class="slider-fill" id="slider-fill-${treeId}"></div>
+            <input type="range" class="watering-slider" id="slider-${treeId}" 
+                   min="0" max="100" value="0">
+          </div>
+          <div class="confirmation-text" id="confirm-text-${treeId}">
+            Release to confirm watering
+          </div>
+        </div>
+      `;
+
+      const marker = L.circleMarker(latlng, {
+        radius: 10,
+        color: '#2d5a27',
+        weight: 2,
+        fillColor: '#3d7a35',
+        fillOpacity: 1,
+        className: 'tree-dot',
+        interactive: true
+      })
+      .bindPopup(popupContent)
+      .addTo(map);
+
+      // Store reference if this is the selected tree
+      if (selectedTreeId && treeId === selectedTreeId) {
+        console.log('Found matching tree:', treeId);
+        selectedMarker = marker;
+        
+        // Ensure the map and marker are ready
+        requestAnimationFrame(() => {
+          // Add highlight class to the marker
+          const markerElement = marker.getElement();
+          if (markerElement) {
+            markerElement.classList.add('highlight-marker');
+            // Remove highlight after animation
+            setTimeout(() => {
+              markerElement.classList.remove('highlight-marker');
+            }, 2250); // 3 pulses * 0.75s each
+          }
+          
+          // Center map on the selected tree and zoom in
+          map.setView(latlng, 2);
+          // Open the popup after a short delay to ensure proper positioning
+          setTimeout(() => {
+            marker.openPopup();
+          }, 300);
+        });
+      }
+
+      // Add a small brown dot underneath for the trunk
+      L.circleMarker(latlng, {
+        radius: 3,
+        color: '#5d4037',
+        weight: 0,
+        fillColor: '#5d4037',
+        fillOpacity: 1,
+        className: 'tree-trunk',
+        offset: [2, 2],
+        interactive: false
+      }).addTo(map);
+
+      marker.on('popupopen', () => {
+        const slider = document.getElementById(`slider-${treeId}`);
+        const sliderFill = document.getElementById(`slider-fill-${treeId}`);
+        const confirmText = document.getElementById(`confirm-text-${treeId}`);
+        let isUpdating = false;
+        let success = false;
+
+        slider.addEventListener('input', (e) => {
+          const value = parseInt(e.target.value);
+          sliderFill.style.width = `${value}%`;
+          confirmText.classList.toggle('visible', value > 90);
+        });
+
+        slider.addEventListener('change', async (e) => {
+          const value = parseInt(e.target.value);
+          if (value > 90 && !isUpdating) {
+            isUpdating = true;
+            confirmText.textContent = 'Updating...';
+            
+            success = await updateTreeWatering(treeId);
+            
+            if (success) {
+              const lastWateredSpan = document.getElementById(`last-watered-${treeId}`);
+              lastWateredSpan.textContent = formatDate(new Date());
+              confirmText.textContent = 'Updated!';
+              sliderFill.parentElement.classList.add('slider-success');
+              setTimeout(() => {
+                marker.closePopup();
+              }, 1500);
+            } else {
+              confirmText.textContent = 'Error - Try Again';
+            }
+          }
+          // Always return to start unless update was successful
+          if (!isUpdating || !success) {
+            slider.value = 0;
+            sliderFill.style.width = '0%';
+            confirmText.classList.remove('visible');
+          }
+          isUpdating = false;
+        });
+
+        // Reset slider when popup opens
+        slider.value = 0;
+        sliderFill.style.width = '0%';
+        confirmText.classList.remove('visible');
+      });
+    });
+  } catch (error) {
+    console.error("Error fetching trees:", error);
+  }
+});
+
+// Bulk update function for tree dates
+async function bulkUpdateTreeDates() {
+  try {
+    const treesSnapshot = await getDocs(collection(db, "trees"));
+    let updateCount = 0;
+    const totalTrees = treesSnapshot.size;
+    
+    const plantedDate = Timestamp.fromDate(new Date('2025-01-20'));
+    const wateredDate = Timestamp.fromDate(new Date('2025-05-07'));
+    
+    console.log(`Starting bulk update of ${totalTrees} trees...`);
+    
+    for (const treeDoc of treesSnapshot.docs) {
+      try {
+        await updateDoc(doc(db, "trees", treeDoc.id), {
+          datePlanted: plantedDate,
+          lastWateredDate: wateredDate
+        });
+        updateCount++;
+        console.log(`Updated tree ${updateCount}/${totalTrees}: ${treeDoc.id}`);
+      } catch (error) {
+        console.error(`Failed to update tree ${treeDoc.id}:`, error);
+      }
+    }
+    
+    console.log(`Bulk update complete. Successfully updated ${updateCount}/${totalTrees} trees.`);
+  } catch (error) {
+    console.error("Error in bulk update:", error);
+  }
+}
+
+// Make the function available in the global scope for console access
+window.bulkUpdateTreeDates = bulkUpdateTreeDates;
+
+function handleTreeClick(treeId) {
+    selectedTreeId = treeId;
+    // Update the slider container visibility
+    const sliderContainer = document.getElementById('slider-container');
+    if (sliderContainer) {
+        sliderContainer.style.display = 'block';
+    }
+    
+    // Find the tree marker and update its style
+    treeMarkers.forEach(marker => {
+        const markerId = marker.getElement().getAttribute('data-tree-id');
+        if (markerId === treeId) {
+            marker.getElement().classList.add('selected');
+        } else {
+            marker.getElement().classList.remove('selected');
+        }
+    });
+}
+
+async function bulkUpdateLastWatered(treeIds) {
+    const totalTrees = treeIds.length;
+    let updateCount = 0;
+    
+    for (const treeId of treeIds) {
+        try {
+            const treeRef = db.collection('trees').doc(treeId);
+            await treeRef.update({
+                lastWateredDate: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            updateCount++;
+        } catch (error) {
+            // Handle error silently and continue with next tree
+        }
+    }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,406 @@
+/* Modern, professional styling with a green theme */
+:root {
+    --primary-green: #2e7d32;
+    --light-green: #4caf50;
+    --accent-green: #81c784;
+    --hover-green: #1b5e20;
+    --background: #f5f7f5;
+    --card-bg: #ffffff;
+    --text-primary: #2c3e50;
+    --text-secondary: #546e7a;
+    --border-color: #e0e0e0;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    background-color: var(--background);
+    color: var(--text-primary);
+    line-height: 1.8;
+}
+
+h1 {
+    background: linear-gradient(135deg, var(--primary-green), var(--light-green));
+    color: white;
+    padding: 1.5rem 0;
+    text-align: center;
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 600;
+    box-shadow: var(--shadow);
+}
+
+#watering-recommendation, #tree-list {
+    background-color: var(--card-bg);
+    margin: 2rem auto;
+    padding: 2rem;
+    border-radius: 12px;
+    max-width: 800px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.3s ease;
+}
+
+#watering-recommendation:hover, #tree-list:hover {
+    box-shadow: var(--shadow-hover);
+}
+
+h2 {
+    color: var(--primary-green);
+    border-bottom: 2px solid var(--accent-green);
+    padding-bottom: 0.75rem;
+    margin-top: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+footer {
+    text-align: center;
+    margin-top: 3rem;
+    padding: 1.5rem 0;
+    background: linear-gradient(135deg, var(--primary-green), var(--light-green));
+    color: white;
+    box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Tree items styling */
+.tree-item {
+    padding: 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.tree-item:hover {
+    background-color: rgba(129, 199, 132, 0.1);
+    transform: translateX(5px);
+}
+
+.tree-item:last-child {
+    border-bottom: none;
+}
+
+.tree-info {
+    flex: 1;
+}
+
+.tree-info strong {
+    display: flex;
+    align-items: center;
+    color: var(--primary-green);
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.tree-info .last-watered {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.thirsty-tree-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Map button styling */
+.map-button-container {
+    text-align: center;
+    margin: 2.5rem 0;
+}
+
+.map-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 1rem 2rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, var(--primary-green), var(--light-green));
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow);
+}
+
+.map-button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+    background: linear-gradient(135deg, var(--hover-green), var(--primary-green));
+}
+
+.map-button:active {
+    transform: translateY(0);
+}
+
+/* Loading Animation */
+.loading-container {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    padding: 2.5rem;
+    min-height: 250px;
+}
+
+.loading-container.active {
+    display: flex;
+}
+
+.tree-loader {
+    position: relative;
+    width: 140px;
+    height: 140px;
+}
+
+.tree-trunk {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 12px;
+    height: 30px;
+    background: #795548;
+    transform: translateX(-50%);
+    animation: trunkGrow 2s ease-out infinite;
+}
+
+.tree-crown {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    transform: translateX(-50%) scale(0);
+    animation: crownGrow 2s ease-out infinite;
+}
+
+.tree-crown::before,
+.tree-crown::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: inherit;
+    border-radius: 50%;
+    opacity: 0.7;
+}
+
+.tree-crown::before {
+    transform: translate(-60%, 20%) scale(0.6);
+    animation: leafSway 3s ease-in-out infinite;
+}
+
+.tree-crown::after {
+    transform: translate(60%, 20%) scale(0.6);
+    animation: leafSway 3s ease-in-out infinite reverse;
+}
+
+.loading-text {
+    position: absolute;
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--primary-green);
+    font-size: 1rem;
+    white-space: nowrap;
+    opacity: 0.9;
+    font-weight: 500;
+}
+
+/* Status styling */
+#casey-trees-alert-status {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--primary-green);
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-radius: 8px;
+    background-color: rgba(129, 199, 132, 0.1);
+    text-align: center;
+}
+
+#casey-trees-alert-details {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 1rem 0;
+}
+
+.last-updated {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: 1rem;
+    text-align: right;
+    font-style: italic;
+}
+
+/* Animations */
+@keyframes trunkGrow {
+    0% {
+        height: 0;
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        height: 30px;
+    }
+}
+
+@keyframes crownGrow {
+    0% {
+        transform: translateX(-50%) scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: translateX(-50%) scale(0);
+        opacity: 0;
+    }
+    80% {
+        transform: translateX(-50%) scale(1.1);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(-50%) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes leafSway {
+    0%, 100% {
+        transform: translate(-60%, 20%) scale(0.6) rotate(0deg);
+    }
+    50% {
+        transform: translate(-60%, 20%) scale(0.6) rotate(5deg);
+    }
+}
+
+/* Responsive design */
+@media (max-width: 850px) {
+    #watering-recommendation, #tree-list {
+        margin: 1.5rem;
+        padding: 1.5rem;
+    }
+
+    h1 {
+        font-size: 1.75rem;
+        padding: 1.25rem 0;
+    }
+
+    .map-button {
+        font-size: 1.1rem;
+        padding: 0.875rem 1.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.5rem;
+        padding: 1rem 0;
+    }
+
+    #watering-recommendation, #tree-list {
+        margin: 1rem;
+        padding: 1rem;
+    }
+
+    .map-button {
+        font-size: 1rem;
+        padding: 0.75rem 1.5rem;
+    }
+
+    .happy-trees {
+        font-size: 1.4em;
+        padding: 1.5rem;
+    }
+}
+
+.thirsty-emoji {
+    font-size: 1.4em;
+    margin-right: 8px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Happy trees message */
+.happy-trees {
+    font-size: 1.8em;
+    text-align: center;
+    color: var(--primary-green);
+    margin: 2rem 0;
+    padding: 2rem;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+.home-button {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: white;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: sans-serif;
+    font-size: 16px;
+    color: #673ab7;
+    transition: all 0.3s ease;
+    overflow: hidden;
+    position: relative;
+}
+
+.home-button::before {
+    content: 'park\A park\A park';
+    font-family: 'Material Icons';
+    white-space: pre;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.05;
+    font-size: 24px;
+    pointer-events: none;
+    letter-spacing: 8px;
+    line-height: 1.2;
+}
+
+.home-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(103, 58, 183, 0.2);
+}
+
+.home-button .material-icons {
+    font-size: 24px;
+    transition: transform 0.3s ease;
+}
+
+.home-button:hover .material-icons {
+    transform: translateX(-4px);
+}
+
+@media (max-width: 768px) {
+    .home-button {
+        top: 10px;
+        right: 10px;
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+
+    .home-button::before {
+        font-size: 20px;
+        letter-spacing: 6px;
+    }
+} 

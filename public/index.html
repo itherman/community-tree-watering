@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCC Tree Watering</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <h1>Native Trees Watering Project</h1>
+
+    <div id="watering-recommendation">
+      <h2>Casey Trees Weekly Watering Alert:</h2>
+      <div class="loading-container active">
+        <div class="tree-loader">
+          <div class="tree-trunk"></div>
+          <div class="tree-crown"></div>
+          <div class="loading-text">Loading watering status...</div>
+        </div>
+      </div>
+      <p id="casey-trees-alert-status" style="display: none;">Loading...</p>
+      <p id="casey-trees-alert-details"></p>
+    </div>
+
+    <div class="map-button-container">
+      <a href="hoa_trees_map.html" class="map-button">View Interactive Tree Map</a>
+    </div>
+
+    <div id="tree-list">
+      <h2>Thirsty Trees</h2>
+      <div class="loading-container active">
+        <div class="tree-loader">
+          <div class="tree-trunk"></div>
+          <div class="tree-crown"></div>
+          <div class="loading-text">Finding thirsty trees...</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Powered by Tree Huggers & Firebase</p>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

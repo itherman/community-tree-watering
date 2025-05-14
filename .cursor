@@ -1,0 +1,76 @@
+# Community Tree Care Project
+
+## Project Overview
+A web application for managing community tree watering, featuring integration with Casey Trees' watering recommendations and Firebase backend.
+
+## Project Structure
+```
+├── public/                 # Frontend static files
+│   ├── index.html         # Main application page
+│   ├── app.js            # Frontend JavaScript
+│   ├── firebase-init.js  # Firebase initialization
+│   ├── style.css        # Application styling
+│   └── 404.html         # Error page
+├── functions/             # Firebase Cloud Functions
+│   ├── index.js         # Backend functions
+│   └── package.json     # Backend dependencies
+├── hoa_trees_map.html    # Interactive tree map
+├── new-tree-map.png     # Tree map background image
+└── firebase.json        # Firebase configuration
+```
+
+## Key Features
+1. Interactive tree map showing all community trees
+2. Casey Trees watering alert integration
+3. Anonymous authentication for tree watering updates
+4. Thirsty trees list based on watering history
+5. Firebase backend with Firestore database
+
+## Data Models
+
+### Tree Document
+```javascript
+{
+    commonName: string,
+    botanicalName: string,
+    locationDescription: string,
+    originalTreeId: string,
+    mapCoordinates: { x: number, y: number },
+    lastWateredDate: Timestamp,
+    datePlanted: Timestamp,
+    photoUrl: string,
+    notes: string
+}
+```
+
+### Watering Alert Document
+```javascript
+{
+    status: "Must Water" | "Optional" | "Don't Water",
+    details: string,
+    lastUpdated: Timestamp,
+    source: string
+}
+```
+
+## Firebase Configuration
+- Project: community-tree-watering
+- Services: 
+  - Hosting
+  - Cloud Functions
+  - Firestore Database
+  - Anonymous Authentication
+
+## Development Notes
+1. The frontend uses vanilla JavaScript with Firebase SDK
+2. Backend scrapes Casey Trees website for watering alerts
+3. Tree map uses custom coordinates system with image overlay
+4. Anonymous authentication enables user interaction without accounts
+5. Responsive design with mobile-first approach
+
+## TODO
+1. Implement scheduled watering alert updates
+2. Add email notifications for thirsty trees
+3. Enhance tree map with filtering options
+4. Add tree health monitoring features
+5. Implement user roles and permissions 
