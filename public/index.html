@@ -3,14 +3,151 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CCC Tree Watering</title>
+    <title>Grove Guardian</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap">
+    <style>
+      /* ... existing styles ... */
+      
+      h1 {
+          font-family: 'Libre Baskerville', serif;
+          color: #1a472a;
+          text-align: center;
+          margin: 0.5rem 0 1.5rem 0;
+          font-size: 2.5rem;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          line-height: 1.3;
+          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+          background: linear-gradient(45deg, #1a472a, #2e7d32);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          position: relative;
+      }
+      
+      .grove-tree-list {
+          list-style: none;
+          padding: 0;
+          margin: 20px 0;
+      }
+
+      .grove-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0;
+          margin-bottom: 8px;
+      }
+
+      .grove-header .title-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 0;
+      }
+
+      .grove-header h2 {
+          margin: 0;
+          font-size: 1.5em;
+          color: #2e7d32;
+          text-decoration: none;
+          border-bottom: none;
+      }
+
+      .grove-header .material-icons {
+          color: #2e7d32;
+          font-size: 24px;
+      }
+
+      .grove-header .tree-border {
+          display: flex;
+          gap: 6px;
+          margin: -4px 0 0 0;
+      }
+
+      .grove-header .tree-border .material-icons {
+          font-size: 24px;
+          color: #2e7d32;
+          opacity: 0.8;
+      }
+
+      .tree-item.grove {
+          background: linear-gradient(to right, #f3e5f5, #e8f5e9);
+          border-left: 4px solid #e53935;
+          margin-bottom: 10px;
+          padding: 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .tree-item.grove:hover {
+          transform: translateX(5px);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      .tree-item.grove .tree-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+      }
+
+      .tree-item.grove strong {
+          color: #2e7d32;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+      }
+
+      footer {
+          background: linear-gradient(to right, rgba(46, 125, 50, 0.1), rgba(46, 125, 50, 0.05));
+          padding: 1rem;
+          margin-top: 2rem;
+          text-align: center;
+          border-top: 1px solid rgba(46, 125, 50, 0.1);
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+
+      footer .content {
+          max-width: 600px;
+          margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+      }
+
+      footer .main-text {
+          color: #2e7d32;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+      }
+
+      footer .version-info {
+          font-size: 0.85rem;
+          color: #666;
+      }
+
+      footer .material-icons {
+          font-size: 1.2rem;
+          color: #2e7d32;
+      }
+    </style>
   </head>
   <body>
-    <h1>Native Trees Watering Project</h1>
+    <header>
+      <h1>
+        <span class="material-icons">park</span>
+        Grove Guardian
+        <span class="material-icons">park</span>
+      </h1>
+    </header>
 
     <div id="watering-recommendation">
-      <h2>Casey Trees Weekly Watering Alert:</h2>
       <div class="loading-container active">
         <div class="tree-loader">
           <div class="tree-trunk"></div>
@@ -18,16 +155,23 @@
           <div class="loading-text">Loading watering status...</div>
         </div>
       </div>
+      <h2 style="display: none;">Casey Trees Weekly Watering Alert:</h2>
       <p id="casey-trees-alert-status" style="display: none;">Loading...</p>
       <p id="casey-trees-alert-details"></p>
     </div>
 
     <div class="map-button-container">
-      <a href="hoa_trees_map.html" class="map-button">View Interactive Tree Map</a>
+      <a href="hoa_trees_map.html" class="map-button">
+        <span class="material-icons">map</span>
+        View Interactive Tree Map
+      </a>
+      <a href="how_to_use.html" class="map-button help-button">
+        <span class="material-icons">help_outline</span>
+        How to Use
+      </a>
     </div>
 
     <div id="tree-list">
-      <h2>Thirsty Trees</h2>
       <div class="loading-container active">
         <div class="tree-loader">
           <div class="tree-trunk"></div>
@@ -38,7 +182,18 @@
     </div>
 
     <footer>
-      <p>Powered by Tree Huggers & Firebase</p>
+      <div class="content">
+        <div class="main-text">
+          <span class="material-icons">park</span>
+          Powered by Tree Huggers, CaseyTrees & Firebase
+          <span class="material-icons">favorite</span>
+        </div>
+        <div class="version-info">
+          <script>
+            document.write(`${window.APP_VERSION.name} v${window.APP_VERSION.number} (${window.APP_VERSION.lastUpdated})`);
+          </script>
+        </div>
+      </div>
     </footer>
 
     <script type="module" src="app.js"></script>

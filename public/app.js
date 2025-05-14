@@ -1,160 +1,74 @@
 // Import necessary Firebase services and functions from firebase-init.js
 import { auth, db, signInAnonymously } from './firebase-init.js';
-import { getFirestore, collection, addDoc, Timestamp, getDocs, query, orderBy, doc, getDoc, updateDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+import { collection, addDoc, Timestamp, getDocs, query, orderBy, doc, getDoc, updateDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
 // Note: Importing directly from an HTML file like this is unconventional.
 // A better practice would be to have a firebaseInit.js that exports these, 
 // and both index.html and app.js import from there.
 // However, for simplicity with the current setup, we'll try this.
 // If this doesn't work, we'll create a separate firebaseInit.js
 
+// App version information
+const APP_VERSION = {
+    number: '1.0.0',
+    name: 'Grove Guardian',
+    lastUpdated: '2024-03-19'
+};
+window.APP_VERSION = APP_VERSION; // Make available globally
+
 // DOM Elements
 const treeListDiv = document.getElementById('tree-list');
-const caseyTreesAlertStatus = document.getElementById('casey-trees-alert-status');
 const caseyTreesAlertDetails = document.getElementById('casey-trees-alert-details');
 let currentWateringRecommendation = "Optional"; // Default, will be updated from Firestore
 
 // Helper function to ensure minimum loading time
-async function ensureMinLoadingTime(startTime, minDuration = 1500) {
+async function ensureMinLoadingTime(startTime, minDuration = 1000) {
     const elapsedTime = Date.now() - startTime;
     if (elapsedTime < minDuration) {
         await new Promise(resolve => setTimeout(resolve, minDuration - elapsedTime));
     }
 }
 
-function testFirebaseConnection() {
-    return db.collection('test').doc('test').get()
-        .then(() => {
-            // Connection successful
-            return true;
-        })
-        .catch((error) => {
-            throw new Error('Failed to connect to Firestore: ' + error);
-        });
+// Test Firebase connection immediately
+try {
+    const testDocRef = doc(db, 'site_config', 'test');
+    await getDoc(testDocRef);
+} catch (error) {
+    console.error('Error connecting to Firestore:', error);
 }
 
-function initializeFirestore() {
-    return db.collection('wateringAlert').get()
-        .then((snapshot) => {
-            if (snapshot.empty) {
-                // Initialize with default data
-                return db.collection('wateringAlert').add({
-                    alertText: 'No alert',
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                    needsWatering: false
-                });
-            }
-        });
-}
-
-function authenticateAnonymously() {
-    return firebase.auth().signInAnonymously()
-        .then((userCredential) => {
-            const user = userCredential.user;
-            return user;
-        });
-}
-
-function getInitialData() {
-    return db.collection('wateringAlert')
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get()
-        .then((snapshot) => {
-            if (!snapshot.empty) {
-                return snapshot.docs[0].data();
-            }
-            return null;
-        });
-}
-
-function checkFirestore() {
-    return new Promise((resolve, reject) => {
-        const maxAttempts = 10;
-        let attempts = 0;
-
-        function tryConnection() {
-            db.collection('wateringAlert')
-                .orderBy('timestamp', 'desc')
-                .limit(1)
-                .get()
-                .then((snapshot) => {
-                    resolve(snapshot);
-                })
-                .catch((error) => {
-                    attempts++;
-                    if (attempts < maxAttempts) {
-                        setTimeout(tryConnection, 1000);
-                    } else {
-                        reject(new Error('Failed to connect to Firestore after multiple attempts'));
-                    }
-                });
+// Function to initialize Firestore with default data if needed
+async function initializeFirestoreIfNeeded() {
+    const alertDocRef = doc(db, 'site_config', 'watering_alert');
+    const alertDoc = await getDoc(alertDocRef);
+    
+    if (!alertDoc.exists()) {
+        const defaultAlert = {
+            status: "Optional",
+            details: "Initial status. Will be updated with live data from Casey Trees.",
+            lastUpdated: Timestamp.now(),
+            source: 'default'
+        };
+        
+        try {
+            await setDoc(alertDocRef, defaultAlert);
+            return defaultAlert;
+        } catch (error) {
+            console.error('Error initializing Firestore:', error);
+            throw error;
         }
-
-        tryConnection();
-    });
-}
-
-async function fetchCaseyTreesAlert() {
-    try {
-        const response = await fetch('https://caseytrees.org/');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const html = await response.text();
-        
-        // Extract alert text using regex
-        const alertRegex = /<div[^>]*class="[^"]*watering-alert[^"]*"[^>]*>([\s\S]*?)<\/div>/i;
-        const match = html.match(alertRegex);
-        
-        if (match) {
-            let alertText = match[1].trim();
-            // Remove HTML tags
-            alertText = alertText.replace(/<[^>]*>/g, '').trim();
-            
-            // Determine if watering is needed
-            const needsWatering = alertText.toLowerCase().includes('water') && 
-                                !alertText.toLowerCase().includes('no need to water') &&
-                                !alertText.toLowerCase().includes('don\'t water');
-
-            const alertData = {
-                alertText: alertText,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                needsWatering: needsWatering
-            };
-
-            // Store in Firestore
-            await db.collection('wateringAlert').add(alertData);
-
-            return alertData;
-        }
-        
-        throw new Error('Alert text not found on page');
-        
-    } catch (error) {
-        throw new Error('Failed to fetch Casey Trees alert: ' + error.message);
     }
+    
+    return alertDoc.data();
 }
 
 // Function to sign in a user anonymously
 const anonCreateUser = async () => {
     try {
-        // Test Firebase connection
-        await testFirebaseConnection();
+        const userCredential = await signInAnonymously(auth);
+        const user = userCredential.user;
         
         // Initialize Firestore if needed
-        await initializeFirestore();
-        
-        // Authenticate user
-        const user = await authenticateAnonymously();
-        
-        // Get initial data
-        const initialData = await getInitialData();
-        
-        // Check Firestore connection
-        await checkFirestore();
-        
-        // Fetch fresh data from Casey Trees
-        const alertData = await fetchCaseyTreesAlert();
+        const initialData = await initializeFirestoreIfNeeded();
         
         // Display the initial/existing data
         await displayWateringAlert(initialData);
@@ -165,6 +79,7 @@ const anonCreateUser = async () => {
         // Load the trees based on the alert status
         await loadTrees();
     } catch (error) {
+        console.error("Error in initialization:", error);
         if (treeListDiv) treeListDiv.innerHTML = '<p>Error initializing application. Please try refreshing the page.</p>';
     }
 };
@@ -191,6 +106,7 @@ async function getAndUpdateWateringAlert() {
         let shouldFetchFromCaseyTrees = true;
         
         if (result === 'timeout') {
+            console.warn('Firestore taking longer than expected...');
             // Continue waiting for the actual result
             const alertDoc = await alertDocPromise;
             if (alertDoc.exists()) {
@@ -209,11 +125,13 @@ async function getAndUpdateWateringAlert() {
             try {
                 await fetchAndStoreCaseyTreesAlert();
             } catch (fetchError) {
+                console.error("Error fetching from Casey Trees:", fetchError);
                 // Keep displaying the current data, just log the error
             }
         }
         
     } catch (error) {
+        console.error("Error in getAndUpdateWateringAlert:", error);
         await displayWateringAlert({
             status: "Optional",
             details: "Unable to fetch watering status. Please check trees for signs of needing water.",
@@ -236,14 +154,14 @@ function isDataStale(timestamp) {
 
 // Function to fetch and parse Casey Trees alert
 async function fetchAndStoreCaseyTreesAlert() {
+    
     const response = await fetch('https://caseytrees.org/water/');
     
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    const html = await response.text();
-    
+    const html = await response.text();    
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     
@@ -293,9 +211,15 @@ async function fetchAndStoreCaseyTreesAlert() {
         source: 'https://caseytrees.org/water/'
     };
     
-    const alertDocRef = doc(db, 'site_config', 'watering_alert');
-    await setDoc(alertDocRef, alertData);
-    await displayWateringAlert(alertData);
+    
+    try {
+        const alertDocRef = doc(db, 'site_config', 'watering_alert');
+        await setDoc(alertDocRef, alertData);
+        await displayWateringAlert(alertData);
+    } catch (error) {
+        console.error("Error storing in Firestore:", error);
+        throw error;
+    }
 }
 
 // Helper function to get default details based on status
@@ -322,7 +246,10 @@ async function displayWateringAlert(alertData) {
     const loadingContainer = document.querySelector('#watering-recommendation .loading-container');
     loadingContainer.classList.remove('active');
     
-    // Show status
+    // Show title and status
+    const titleElement = document.querySelector('#watering-recommendation h2');
+    titleElement.style.display = 'block';
+    
     const statusElement = document.getElementById('casey-trees-alert-status');
     statusElement.style.display = 'block';
     statusElement.textContent = alertData.status;
@@ -379,50 +306,107 @@ async function loadTrees() {
 
         let htmlContent = '';
         let thirstyTreeCount = 0;
+        const thirstyTrees = new Set(); // Keep track of thirsty trees
+
+        // Function to check if a tree is thirsty
+        const isTreeThirsty = (tree) => {
+            if (currentWateringRecommendation === "Don't Water") {
+                return false;
+            }
+            
+            const now = new Date();
+            if (!tree.lastWateredDate) {
+                return currentWateringRecommendation === "Must Water" || 
+                       currentWateringRecommendation === "Optional";
+            }
+            
+            const lastWateredDate = tree.lastWateredDate.toDate();
+            const daysSinceWatered = Math.floor((now - lastWateredDate) / (24 * 60 * 60 * 1000));
+            return daysSinceWatered > 7 && 
+                   (currentWateringRecommendation === "Must Water" || 
+                    currentWateringRecommendation === "Optional");
+        };
+
+        // Get My Grove trees
+        const myGrove = getMyGrove();
+        if (myGrove.length > 0) {
+            htmlContent = `<div class="grove-header">
+                <div class="title-row">
+                    <span class="material-icons">park</span>
+                    <h2>My Grove</h2>
+                    <span class="material-icons">park</span>
+                </div>
+                <div class="tree-border">
+                    <span class="material-icons">park</span>
+                    <span class="material-icons">park</span>
+                    <span class="material-icons">park</span>
+                </div>
+            </div><ul class="grove-tree-list">`;
+            
+            // Create a map of tree data for quick lookup
+            const treeDataMap = new Map();
+            querySnapshot.forEach(doc => {
+                treeDataMap.set(doc.id, { ...doc.data(), id: doc.id });
+            });
+            
+            // Add My Grove trees
+            myGrove.forEach(treeId => {
+                const tree = treeDataMap.get(treeId);
+                if (tree) {
+                    const lastWateredDate = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
+                    const treeIsThirsty = isTreeThirsty(tree);
+                    if (treeIsThirsty) {
+                        thirstyTrees.add(treeId); // Add to thirsty set to avoid duplicate listing
+                    }
+                    htmlContent += `
+                        <li class="tree-item grove" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
+                            <div class="tree-info">
+                                <strong>
+                                    <span class="material-icons" style="color: #e53935; font-size: 16px; vertical-align: text-bottom;">
+                                        favorite
+                                    </span>
+                                    ${treeIsThirsty ? '<span class="thirsty-emoji">😫</span>' : ''}
+                                    ${tree.commonName || 'Unknown Tree'}
+                                </strong>
+                                <span class="last-watered">Last watered: ${lastWateredDate}</span>
+                            </div>
+                        </li>
+                    `;
+                }
+            });
+            
+            htmlContent += '</ul>';
+        }
 
         // Don't show thirsty trees if Casey Trees says don't water
         if (currentWateringRecommendation === "Don't Water") {
-            treeListDiv.innerHTML = '<p class="happy-trees">All trees are happily hydrated thanks to the rain! 🌧️</p>';
+            if (!myGrove.length) {
+                treeListDiv.innerHTML = '<p class="happy-trees">All trees are happily hydrated thanks to the rain! 🌧️</p>';
+            } else {
+                treeListDiv.innerHTML = htmlContent + '<h2>Thirsty Trees</h2><p class="happy-trees">All trees are happily hydrated thanks to the rain! 🌧️</p>';
+            }
             return;
         }
 
+        // Add Thirsty Trees section
+        let thirstyContent = '<h2>Thirsty Trees</h2>';
         querySnapshot.forEach((doc) => {
             const tree = doc.data();
             const treeId = doc.id;
             
-            let isThirsty = false;
-            const now = new Date();
-            
-            if (tree.lastWateredDate) {
-                const lastWateredDate = tree.lastWateredDate.toDate();
-                // Calculate exact days since last watered
-                const daysSinceWatered = Math.floor((now - lastWateredDate) / (24 * 60 * 60 * 1000));
-                
-                // Only consider thirsty if:
-                // 1. Last watered MORE THAN 7 days ago (i.e., 8 or more days)
-                // 2. Casey Trees status is "Must Water" or "Optional"
-                if (daysSinceWatered > 7 && 
-                    (currentWateringRecommendation === "Must Water" || 
-                     currentWateringRecommendation === "Optional")) {
-                    isThirsty = true;
-                }
-            } else {
-                // If never watered and recommendation is to water, it's thirsty
-                if (currentWateringRecommendation === "Must Water" || 
-                    currentWateringRecommendation === "Optional") {
-                    isThirsty = true;
-                }
+            // Skip if this tree is already shown in My Grove
+            if (thirstyTrees.has(treeId)) {
+                return;
             }
-
-            if (isThirsty) {
-                // Only add the title when we find our first thirsty tree
+            
+            if (isTreeThirsty(tree)) {
                 if (thirstyTreeCount === 0) {
-                    htmlContent = '<h2>Thirsty Trees</h2><ul class="thirsty-tree-list">';
+                    thirstyContent += '<ul class="thirsty-tree-list">';
                 }
                 thirstyTreeCount++;
                 const lastWateredDate = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
-                htmlContent += `
-                    <li class="tree-item thirsty" onclick="window.location.href='hoa_trees_map.html?tree=${treeId}'">
+                thirstyContent += `
+                    <li class="tree-item thirsty" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
                         <div class="tree-info">
                             <strong><span class="thirsty-emoji">😫</span>${tree.commonName || 'Unknown Tree'}</strong>
                             <span class="last-watered">Last watered: ${lastWateredDate}</span>
@@ -433,25 +417,40 @@ async function loadTrees() {
         });
 
         if (thirstyTreeCount === 0) {
-            treeListDiv.innerHTML = '<p class="happy-trees">All our trees are happy and well-watered! 🌳 ✨</p>';
-            return;
+            thirstyContent += '<p class="happy-trees">All our trees are happy and well-watered! 🌳 ✨</p>';
+        } else {
+            thirstyContent += '</ul>';
         }
 
-        htmlContent += '</ul>';
-        treeListDiv.innerHTML = htmlContent;
+        treeListDiv.innerHTML = myGrove.length ? htmlContent + thirstyContent : thirstyContent;
 
     } catch (error) {
-        treeListDiv.innerHTML = '<h2>Thirsty Trees</h2><p>Error loading trees. Please check the console.</p>';
+        treeListDiv.innerHTML = '<h2>Thirsty Trees</h2><p>Error loading trees. Please try refreshing the page.</p>';
     }
+}
+
+// Add cookie management function
+function getMyGrove() {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('myGrove='));
+    if (cookie) {
+        try {
+            return JSON.parse(cookie.split('=')[1]);
+        } catch (e) {
+            return [];
+        }
+    }
+    return [];
 }
 
 // --- "I Watered This!" button functionality ---
 window.updateLastWatered = async (treeId) => {
     if (!db) {
+        console.error("Firestore (db) not initialized.");
         alert('Error: Database not connected.');
         return;
     }
     if (!auth.currentUser) {
+        console.error("User not signed in.");
         alert('Error: You are not signed in.'); // Should not happen with anonymous auth
         return;
     }
@@ -463,11 +462,12 @@ window.updateLastWatered = async (treeId) => {
         await updateDoc(treeRef, {
             lastWateredDate: Timestamp.now()
         });
-        
+                
         // Refresh the tree list to reflect the changes
         await loadTrees();
         
     } catch (error) {
+        console.error(`Error updating lastWateredDate for tree: ${treeId}`, error);
         alert(`Error: Failed to update watering date. ${error.message}`);
     }
 };
@@ -477,28 +477,47 @@ window.loadStartTime = Date.now(); // Set initial load start time
 anonCreateUser();
 
 // --- Batch Import Function (Keep for console use if needed, or remove if done) ---
-async function importTreeData(treeDataArray) {
-    const batch = db.batch();
+async function batchImportTreesFromConsole(treeDataArray) {
+    if (!db) {
+        console.error("Firestore database (db) is not initialized.");
+        return;
+    }
+    if (!treeDataArray || treeDataArray.length === 0) {
+        console.warn("No tree data provided to import.");
+        return;
+    }
+
+    const treesCollectionRef = collection(db, 'trees'); // Corrected variable name
     let successfulImports = 0;
     let failedImports = 0;
 
-    for (const treeData of treeDataArray) {
+    console.log(`Starting batch import of ${treeDataArray.length} trees...`);
+
+    for (const tree of treeDataArray) {
         try {
             const newTreeDoc = {
-                ...treeData,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                commonName: tree.name || "Unknown Tree",
+                botanicalName: tree.scientific_name || tree["scientific name"] || "Unknown Species",
+                locationDescription: `Map Coordinates: x=${tree.x}, y=${tree.y}`,
+                originalTreeId: tree.id || null,
+                mapCoordinates: { x: tree.x !== undefined ? tree.x : null, y: tree.y !== undefined ? tree.y : null },
+                lastWateredDate: Timestamp.fromDate(new Date('2024-01-01')),
+                datePlanted: Timestamp.fromDate(new Date('2023-01-01')),
+                photoUrl: tree.photo_url || "",
+                notes: ""
             };
 
-            const treeRef = db.collection('trees').doc();
-            batch.set(treeRef, newTreeDoc);
+            await addDoc(treesCollectionRef, newTreeDoc); // Use corrected variable name
             successfulImports++;
+            console.log(`Successfully imported: ${newTreeDoc.commonName} (ID: ${newTreeDoc.originalTreeId})`);
         } catch (error) {
             failedImports++;
+            console.error(`Failed to import tree with original ID: ${tree.id || 'N/A'}. Error:`, error);
         }
     }
 
-    await batch.commit();
-
-    return { successfulImports, failedImports };
+    console.log("Batch import finished.");
+    console.log(`Successfully imported: ${successfulImports} trees.`);
+    console.log(`Failed to import: ${failedImports} trees.`);
 }
-window.importTreeData = importTreeData;
+window.batchImportTreesFromConsole = batchImportTreesFromConsole; 

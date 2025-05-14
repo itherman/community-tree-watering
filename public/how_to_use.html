@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to Use - Grove Guardian</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
+    <style>
+        .help-section {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .help-section h2 {
+            color: var(--primary-green);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .help-section h3 {
+            color: var(--primary-green);
+            margin: 1.5rem 0 1rem;
+            font-size: 1.2rem;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(46, 125, 50, 0.05);
+            border-radius: 8px;
+        }
+
+        .feature-item .material-icons {
+            color: var(--primary-green);
+            font-size: 24px;
+        }
+
+        .feature-content h4 {
+            margin: 0 0 0.5rem;
+            color: var(--primary-green);
+        }
+
+        .feature-content p {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .tip-box {
+            background: #e8f5e9;
+            padding: 1rem;
+            border-left: 4px solid var(--primary-green);
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+
+        .tip-box strong {
+            color: var(--primary-green);
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>
+            <span class="material-icons">park</span>
+            How to Use Grove Guardian
+            <span class="material-icons">park</span>
+        </h1>
+    </header>
+
+    <div class="help-section">
+        <h2>
+            <span class="material-icons">info</span>
+            About Grove Guardian
+        </h2>
+        <p>Grove Guardian is your community tree care companion, designed to help coordinate and track the watering of young trees in our neighborhood. The app makes it easy to identify which trees need water and maintain a healthy urban forest.</p>
+
+        <div class="tip-box">
+            <strong>Why Tree Care Matters</strong>
+            <p>Young trees need regular watering for the first two years after planting. Your participation helps ensure their survival and contributes to a greener, healthier community.</p>
+        </div>
+
+        <h3>Key Features</h3>
+        <ul class="feature-list">
+            <li class="feature-item">
+                <span class="material-icons">water_drop</span>
+                <div class="feature-content">
+                    <h4>Watering Status</h4>
+                    <p>The homepage displays Casey Trees' weekly watering recommendations, helping you decide when trees need water based on recent rainfall and weather conditions.</p>
+                </div>
+            </li>
+            <li class="feature-item">
+                <span class="material-icons">favorite</span>
+                <div class="feature-content">
+                    <h4>My Grove</h4>
+                    <p>Create your personal collection of favorite trees by clicking the heart icon. These trees will appear in your "My Grove" section for easy monitoring.</p>
+                </div>
+            </li>
+            <li class="feature-item">
+                <span class="material-icons">warning</span>
+                <div class="feature-content">
+                    <h4>Thirsty Trees</h4>
+                    <p>Trees that haven't been watered in over 7 days during "Must Water" or "Optional" periods are marked as thirsty with a 😫 emoji.</p>
+                </div>
+            </li>
+            <li class="feature-item">
+                <span class="material-icons">map</span>
+                <div class="feature-content">
+                    <h4>Interactive Map</h4>
+                    <p>View all trees on an interactive map, click on any tree to see its details, and record when you've watered it using the slider control.</p>
+                </div>
+            </li>
+        </ul>
+
+        <h3>How to Water Trees</h3>
+        <ol>
+            <li>Check the homepage for the current watering recommendation from Casey Trees.</li>
+            <li>Look for trees marked as thirsty (😫) in either your Grove or the Thirsty Trees section.</li>
+            <li>Use the interactive map to locate the tree.</li>
+            <li>After watering, slide the watering confirmation slider to record your contribution.</li>
+        </ol>
+
+        <div class="tip-box">
+            <strong>Pro Tip</strong>
+            <p>Add trees you regularly pass by to "My Grove" for quick access and monitoring. This helps ensure no tree goes too long without water.</p>
+        </div>
+    </div>
+
+    <button onclick="window.location.href='index.html'" class="home-button">
+        <span class="material-icons">arrow_back</span>
+        Back to Home
+    </button>
+
+    <footer>
+        <div class="content">
+            <div class="main-text">
+                <span class="material-icons">park</span>
+                Powered by Tree Huggers, CaseyTrees & Firebase
+                <span class="material-icons">favorite</span>
+            </div>
+            <div class="version-info">
+                <script>
+                    document.write(`${window.APP_VERSION.name} v${window.APP_VERSION.number} (${window.APP_VERSION.lastUpdated})`);
+                </script>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html> 

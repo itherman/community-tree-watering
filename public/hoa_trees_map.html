@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>CCC Tree Map</title>
+  <title>Grove Guardian Tree Map</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -13,13 +13,14 @@
     /* Styles for watering slider */
     .watering-slider-container {
       margin-top: 10px;
+      margin-bottom: 4px;
     }
     
     .slider-label {
       color: #666;
       font-size: 0.9em;
       display: block;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
     
     .slider-wrapper {
@@ -28,7 +29,7 @@
       background: #e3f2fd;
       border-radius: 10px;
       overflow: hidden;
-      margin: 10px 0;
+      margin: 6px 0;
       box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
     }
     
@@ -114,7 +115,7 @@
     .confirmation-text {
       color: #2196f3;
       font-weight: bold;
-      margin: 10px 0 5px;
+      margin: 4px 0 2px;
       opacity: 0;
       transition: opacity 0.3s;
       height: 20px;
@@ -236,32 +237,69 @@
       position: relative;
     }
 
-    .tree-marker::before {
+    /* Yellow halo for favorited trees */
+    .tree-dot.favorited {
+      filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.9));
+    }
+
+    .tree-dot.favorited::before {
       content: '';
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 16px;
-      height: 16px;
-      background: #2d5a27;
-      border-radius: 50% 50% 50% 50%;
-      transform: translate(-50%, -50%) rotate(45deg);
-      box-shadow: 
-        2px 2px 0 #1b3619,
-        -2px -2px 0 #3d7a35;
+      width: 32px;
+      height: 32px;
+      background: radial-gradient(
+        circle,
+        rgba(255, 215, 0, 0.8) 30%,
+        rgba(255, 215, 0, 0.4) 60%,
+        rgba(255, 215, 0, 0) 100%
+      );
+      border: 3px solid rgba(255, 215, 0, 1);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      /* Remove any transition that might be inherited */
+      transition: none !important;
     }
 
-    .tree-marker::after {
-      content: '';
-      position: absolute;
-      bottom: 6px;
-      left: 50%;
-      width: 6px;
-      height: 6px;
-      background: #5d4037;
-      border-radius: 50%;
-      transform: translateX(-50%);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    /* Ensure no transition on the tree dot itself */
+    .tree-dot {
+      transition: none !important;
+    }
+
+    .tree-dot::before {
+      transition: none !important;
+    }
+
+    /* Popup styles */
+    .popup-title strong {
+      font-size: 1.1em;
+      display: inline-block;
+      margin-bottom: 2px;
+    }
+
+    .popup-title {
+      flex-grow: 1;
+    }
+
+    .popup-heart {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease;
+    }
+
+    .popup-heart:hover {
+      transform: scale(1.1);
+    }
+
+    .popup-heart:active {
+      transform: scale(0.9);
     }
 
     /* Add styles for the tree dots */
@@ -310,6 +348,19 @@
 import { auth, db, signInAnonymously } from './firebase-init.js';
 import { doc, updateDoc, Timestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
 
+// Define getMyGrove in global scope
+window.getMyGrove = function() {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('myGrove='));
+    if (cookie) {
+        try {
+            return JSON.parse(cookie.split('=')[1]);
+        } catch (e) {
+            return [];
+        }
+    }
+    return [];
+};
+
 const mapW=1277, mapH=934; // Dimensions for no-trees-map.png
 const map = L.map('map', { 
   crs: L.CRS.Simple, 
@@ -354,10 +405,8 @@ async function updateTreeWatering(treeId) {
 
 // Check for tree parameter in URL
 const urlParams = new URLSearchParams(window.location.search);
-const selectedTreeId = urlParams.get('tree');
+const selectedTreeId = urlParams.get('treeId') || urlParams.get('tree');
 let selectedMarker = null;
-
-console.log('Selected Tree ID:', selectedTreeId);
 
 // Wait for map to be ready and fetch tree data
 map.whenReady(async () => {
@@ -369,14 +418,28 @@ map.whenReady(async () => {
       const treeId = doc.id;
       const latlng = [tree.mapCoordinates.y, tree.mapCoordinates.x];
       
-      // Log the comparison for debugging
-      console.log('Comparing:', treeId, selectedTreeId);
+      // Check if tree is in grove before creating popup content
+      const myGrove = window.getMyGrove();
+      const isInGrove = myGrove.includes(treeId);
       
       const popupContent = document.createElement('div');
       popupContent.innerHTML = `
-        <strong>${tree.commonName || 'Tree'}</strong><br/>
-        Scientific name: ${tree.botanicalName || '–'}<br/>
-        <div class="last-watered">Last watered: <span id="last-watered-${treeId}">${formatDate(tree.lastWateredDate)}</span></div>
+        <div class="popup-title">
+          <strong>${tree.commonName || 'Tree'}</strong><br/>
+          Scientific name: ${tree.botanicalName || '–'}<br/>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0;">
+          <div class="last-watered">Last watered: <span id="last-watered-${treeId}">${formatDate(tree.lastWateredDate)}</span></div>
+          <button 
+            class="popup-heart" 
+            id="grove-btn-${treeId}" 
+            onclick="toggleGroveTree('${treeId}', this)"
+            title="${isInGrove ? 'Remove from My Grove' : 'Add to My Grove'}">
+            <span class="material-icons" style="color: ${isInGrove ? '#e53935' : '#4CAF50'}; font-size: 20px;">
+              ${isInGrove ? 'favorite' : 'favorite_border'}
+            </span>
+          </button>
+        </div>
         <div class="watering-slider-container">
           <span class="slider-label">Slide to confirm watering</span>
           <div class="slider-wrapper">
@@ -399,48 +462,43 @@ map.whenReady(async () => {
         className: 'tree-dot',
         interactive: true
       })
-      .bindPopup(popupContent)
+      .bindPopup(popupContent, {
+        autoPan: true,
+        autoPanPadding: [50, 50],
+        keepInView: true
+      })
       .addTo(map);
 
-      // Store reference if this is the selected tree
-      if (selectedTreeId && treeId === selectedTreeId) {
-        console.log('Found matching tree:', treeId);
+      // Store marker reference in a map for easy access
+      window.treeMarkers = window.treeMarkers || new Map();
+      window.treeMarkers.set(treeId, marker);
+
+      // If this is the selected tree, store its marker and open popup
+      if (treeId === selectedTreeId) {
         selectedMarker = marker;
-        
-        // Ensure the map and marker are ready
-        requestAnimationFrame(() => {
-          // Add highlight class to the marker
-          const markerElement = marker.getElement();
-          if (markerElement) {
-            markerElement.classList.add('highlight-marker');
-            // Remove highlight after animation
-            setTimeout(() => {
-              markerElement.classList.remove('highlight-marker');
-            }, 2250); // 3 pulses * 0.75s each
-          }
-          
-          // Center map on the selected tree and zoom in
-          map.setView(latlng, 2);
-          // Open the popup after a short delay to ensure proper positioning
-          setTimeout(() => {
-            marker.openPopup();
-          }, 300);
-        });
+        map.setView(latlng, 1);
+        marker.openPopup();
       }
 
-      // Add a small brown dot underneath for the trunk
-      L.circleMarker(latlng, {
-        radius: 3,
-        color: '#5d4037',
-        weight: 0,
-        fillColor: '#5d4037',
-        fillOpacity: 1,
-        className: 'tree-trunk',
-        offset: [2, 2],
-        interactive: false
-      }).addTo(map);
+      // Set initial favorite state
+      if (isInGrove) {
+        marker.getElement().classList.add('favorited');
+      }
 
+      // Update icon if tree is in grove
       marker.on('popupopen', () => {
+        const btn = document.getElementById(`grove-btn-${treeId}`);
+        const icon = btn.querySelector('.material-icons');
+        const currentGrove = window.getMyGrove(); // Get fresh grove state
+        
+        if (currentGrove.includes(treeId)) {
+          icon.textContent = 'favorite';
+          icon.style.color = '#e53935';
+        } else {
+          icon.textContent = 'favorite_border';
+          icon.style.color = '#4CAF50';
+        }
+
         const slider = document.getElementById(`slider-${treeId}`);
         const sliderFill = document.getElementById(`slider-fill-${treeId}`);
         const confirmText = document.getElementById(`confirm-text-${treeId}`);
@@ -487,6 +545,18 @@ map.whenReady(async () => {
         sliderFill.style.width = '0%';
         confirmText.classList.remove('visible');
       });
+
+      // Add a small brown dot underneath for the trunk
+      L.circleMarker(latlng, {
+        radius: 3,
+        color: '#5d4037',
+        weight: 0,
+        fillColor: '#5d4037',
+        fillOpacity: 1,
+        className: 'tree-trunk',
+        offset: [2, 2],
+        interactive: false
+      }).addTo(map);
     });
   } catch (error) {
     console.error("Error fetching trees:", error);
@@ -527,40 +597,40 @@ async function bulkUpdateTreeDates() {
 // Make the function available in the global scope for console access
 window.bulkUpdateTreeDates = bulkUpdateTreeDates;
 
-function handleTreeClick(treeId) {
-    selectedTreeId = treeId;
-    // Update the slider container visibility
-    const sliderContainer = document.getElementById('slider-container');
-    if (sliderContainer) {
-        sliderContainer.style.display = 'block';
+// Add cookie management functions
+window.toggleGroveTree = function(treeId, buttonElement) {
+    const btn = buttonElement || document.getElementById(`grove-btn-${treeId}`);
+    const icon = btn.querySelector('.material-icons');
+    const marker = window.treeMarkers.get(treeId);
+    let myGrove = window.getMyGrove();
+    
+    if (myGrove.includes(treeId)) {
+        // Remove from grove
+        myGrove = myGrove.filter(id => id !== treeId);
+        icon.textContent = 'favorite_border';
+        icon.style.color = '#4CAF50';
+        if (marker) {
+            marker.getElement().classList.remove('favorited');
+        }
+    } else {
+        // Add to grove
+        myGrove.push(treeId);
+        icon.textContent = 'favorite';
+        icon.style.color = '#e53935';
+        if (marker) {
+            marker.getElement().classList.add('favorited');
+        }
     }
     
-    // Find the tree marker and update its style
-    treeMarkers.forEach(marker => {
-        const markerId = marker.getElement().getAttribute('data-tree-id');
-        if (markerId === treeId) {
-            marker.getElement().classList.add('selected');
-        } else {
-            marker.getElement().classList.remove('selected');
-        }
-    });
-}
+    // Save to cookie
+    document.cookie = `myGrove=${JSON.stringify(myGrove)}; max-age=31536000; path=/`;
 
-async function bulkUpdateLastWatered(treeIds) {
-    const totalTrees = treeIds.length;
-    let updateCount = 0;
-    
-    for (const treeId of treeIds) {
-        try {
-            const treeRef = db.collection('trees').doc(treeId);
-            await treeRef.update({
-                lastWateredDate: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            updateCount++;
-        } catch (error) {
-            // Handle error silently and continue with next tree
+    // Close the popup after a short delay
+    setTimeout(() => {
+        if (marker) {
+            marker.closePopup();
         }
-    }
+    }, 300);
 }
 </script>
 </body>

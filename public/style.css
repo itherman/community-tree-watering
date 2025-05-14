@@ -21,15 +21,32 @@ body {
     line-height: 1.8;
 }
 
-h1 {
-    background: linear-gradient(135deg, var(--primary-green), var(--light-green));
-    color: white;
+header {
+    background: linear-gradient(to right, rgba(46, 125, 50, 0.1), rgba(46, 125, 50, 0.05));
     padding: 1.5rem 0;
-    text-align: center;
+    border-bottom: 1px solid rgba(46, 125, 50, 0.1);
+    margin-bottom: 2rem;
+}
+
+h1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #2e7d32;
+    font-weight: 500;
+    font-size: 2.2rem;
     margin: 0;
+    padding: 0;
+    text-align: center;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: none;
+    box-shadow: none;
+}
+
+h1 .material-icons {
     font-size: 2rem;
-    font-weight: 600;
-    box-shadow: var(--shadow);
+    color: #2e7d32;
 }
 
 #watering-recommendation, #tree-list {
@@ -110,11 +127,17 @@ footer {
 .map-button-container {
     text-align: center;
     margin: 2.5rem 0;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
 }
 
 .map-button {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    gap: 8px;
     padding: 1rem 2rem;
     font-size: 1.25rem;
     font-weight: 600;
@@ -126,12 +149,31 @@ footer {
     text-decoration: none;
     transition: all 0.3s ease;
     box-shadow: var(--shadow);
+    min-width: 200px;
+    text-align: center;
+    padding-right: 2.5rem;
+}
+
+.map-button .material-icons {
+    font-size: 1.4rem;
+    margin-right: -4px;
+}
+
+.map-button.help-button {
+    background: linear-gradient(135deg, #4CAF50, #2196F3);
 }
 
 .map-button:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-hover);
+}
+
+.map-button:hover:not(.help-button) {
     background: linear-gradient(135deg, var(--hover-green), var(--primary-green));
+}
+
+.map-button.help-button:hover {
+    background: linear-gradient(135deg, #43A047, #1E88E5);
 }
 
 .map-button:active {
@@ -289,9 +331,16 @@ footer {
         padding: 1.5rem;
     }
 
-    h1 {
-        font-size: 1.75rem;
+    header {
         padding: 1.25rem 0;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    h1 .material-icons {
+        font-size: 1.6rem;
     }
 
     .map-button {
@@ -301,9 +350,16 @@ footer {
 }
 
 @media (max-width: 480px) {
+    header {
+        padding: 1rem 0;
+    }
+
     h1 {
         font-size: 1.5rem;
-        padding: 1rem 0;
+    }
+
+    h1 .material-icons {
+        font-size: 1.4rem;
     }
 
     #watering-recommendation, #tree-list {
@@ -314,6 +370,11 @@ footer {
     .map-button {
         font-size: 1rem;
         padding: 0.75rem 1.5rem;
+        min-width: 160px;
+    }
+
+    .map-button .material-icons {
+        font-size: 1.2rem;
     }
 
     .happy-trees {
