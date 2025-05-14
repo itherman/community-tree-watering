@@ -9,7 +9,7 @@ import { collection, addDoc, Timestamp, getDocs, query, orderBy, doc, getDoc, up
 
 // App version information
 const APP_VERSION = {
-    number: '1.0.1',
+    number: '1.0.2',
     name: 'Grove Guardian',
     lastUpdated: '2025-05-14'
 };
@@ -345,11 +345,6 @@ async function loadTrees() {
                 <div class="title-row">
                     <span class="material-icons">park</span>
                     <h2>My Grove</h2>
-                    <span class="material-icons">park</span>
-                </div>
-                <div class="tree-border">
-                    <span class="material-icons">park</span>
-                    <span class="material-icons">park</span>
                     <span class="material-icons">park</span>
                 </div>
             </div><ul class="grove-tree-list">`;

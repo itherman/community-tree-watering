@@ -4,28 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grove Guardian</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap">
     <style>
       /* ... existing styles ... */
-      
-      h1 {
-          font-family: 'Libre Baskerville', serif;
-          color: #1a472a;
-          text-align: center;
-          margin: 0.5rem 0 1.5rem 0;
-          font-size: 2.5rem;
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          line-height: 1.3;
-          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-          background: linear-gradient(45deg, #1a472a, #2e7d32);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          position: relative;
-      }
       
       .grove-tree-list {
           list-style: none;
@@ -38,7 +23,12 @@
           flex-direction: column;
           align-items: center;
           gap: 0;
-          margin-bottom: 8px;
+          margin-bottom: 20px;
+          position: relative;
+          padding: 20px 0;
+          overflow: hidden;
+          background-color: rgba(46, 125, 50, 0.03);
+          border-radius: 12px;
       }
 
       .grove-header .title-row {
@@ -46,31 +36,146 @@
           align-items: center;
           gap: 8px;
           margin-bottom: 0;
+          position: relative;
+          z-index: 5;
       }
 
       .grove-header h2 {
           margin: 0;
-          font-size: 1.5em;
+          font-size: 1.8em;
           color: #2e7d32;
           text-decoration: none;
           border-bottom: none;
+          text-shadow: 
+              -1px -1px 0 white,
+              1px -1px 0 white,
+              -1px 1px 0 white,
+              1px 1px 0 white,
+              0 0 8px white;
       }
 
       .grove-header .material-icons {
           color: #2e7d32;
           font-size: 24px;
+          text-shadow: 
+              -1px -1px 0 white,
+              1px -1px 0 white,
+              -1px 1px 0 white,
+              1px 1px 0 white,
+              0 0 8px white;
+      }
+
+      /* First layer of trees (background) */
+      .grove-header::before {
+          content: 'park park park park';
+          font-family: 'Material Icons';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          display: flex;
+          justify-content: space-around;
+          align-items: center;
+          font-size: 24px;
+          color: rgba(46, 125, 50, 0.1);
+          letter-spacing: 15px;
+          z-index: 1;
+          pointer-events: none;
+          transform: translateY(-7px);
+      }
+
+      /* Second layer of trees (slightly more visible) */
+      .grove-header::after {
+          content: 'park park';
+          font-family: 'Material Icons';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          display: flex;
+          justify-content: space-evenly;
+          align-items: center;
+          font-size: 24px;
+          color: rgba(46, 125, 50, 0.2);
+          z-index: 2;
+          transform: translateY(-5px);
+          pointer-events: none;
+      }
+
+      /* Additional trees on the sides */
+      .grove-header .title-row::before {
+          content: 'park';
+          font-family: 'Material Icons';
+          position: absolute;
+          left: -45px;
+          top: 50%;
+          font-size: 32px;
+          color: rgba(46, 125, 50, 0.3);
+          z-index: 3;
+          pointer-events: none;
+          transform: translateY(-60%);
+      }
+
+      .grove-header .title-row::after {
+          content: 'park';
+          font-family: 'Material Icons';
+          position: absolute;
+          right: -45px;
+          top: 50%;
+          font-size: 34px;
+          color: rgba(46, 125, 50, 0.3);
+          z-index: 3;
+          pointer-events: none;
+          transform: translateY(-60%);
+      }
+      
+      /* Random larger trees */
+      .grove-header::before,
+      .grove-header::after {
+          text-shadow: 
+              40px -15px 0 rgba(46, 125, 50, 0.15),
+              -50px -8px 0 rgba(46, 125, 50, 0.12),
+              80px -12px 0 rgba(46, 125, 50, 0.18);
+      }
+      
+      /* Extra large trees scattered around */
+      .grove-header::-webkit-scrollbar {
+          width: 0px; /* Just using this selector as a hack for an extra pseudo-element */
+      }
+      .grove-header::-webkit-scrollbar-thumb {
+          background: transparent; /* Just using this selector as a hack for an extra pseudo-element */
+      }
+
+      /* Large tree left */
+      .grove-header::-webkit-scrollbar::before {
+          content: 'park';
+          font-family: 'Material Icons';
+          position: absolute;
+          left: 15%;
+          top: 30%;
+          font-size: 36px;
+          color: rgba(46, 125, 50, 0.25);
+          z-index: 4;
+          pointer-events: none;
+      }
+
+      /* Large tree right */
+      .grove-header::-webkit-scrollbar-thumb::before {
+          content: 'park';
+          font-family: 'Material Icons';
+          position: absolute;
+          right: 20%;
+          top: 25%;
+          font-size: 32px;
+          color: rgba(46, 125, 50, 0.2);
+          z-index: 4;
+          pointer-events: none;
       }
 
       .grove-header .tree-border {
-          display: flex;
-          gap: 6px;
-          margin: -4px 0 0 0;
-      }
-
-      .grove-header .tree-border .material-icons {
-          font-size: 24px;
-          color: #2e7d32;
-          opacity: 0.8;
+          display: none; /* Hide the old tree border */
       }
 
       .tree-item.grove {
@@ -140,11 +245,13 @@
   </head>
   <body>
     <header>
-      <h1>
-        <span class="material-icons">park</span>
-        Grove Guardian
-        <span class="material-icons">park</span>
-      </h1>
+      <div class="title-container">
+        <h1>
+          <span class="material-icons">park</span>
+          Grove Guardian
+          <span class="material-icons">park</span>
+        </h1>
+      </div>
     </header>
 
     <div id="watering-recommendation">
