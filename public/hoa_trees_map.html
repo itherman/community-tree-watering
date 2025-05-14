@@ -316,6 +316,12 @@
         font-size: 24px;
         filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
         text-shadow: 0 0 2px white, 0 0 2px white, 0 0 2px white, 0 0 2px white;
+        pointer-events: none; /* Prevent clicks on water droplets */
+    }
+
+    /* Make water droplet markers non-interactive */
+    .water-droplet-marker {
+        pointer-events: none;
     }
 
     /* Coordinate display styles - disabled */
@@ -357,6 +363,11 @@ window.getMyGrove = function() {
     return [];
 };
 
+// Detect if on mobile
+const isMobile = window.innerWidth <= 767;
+// Set appropriate zoom level based on device
+const initialZoom = isMobile ? -0.50 : 0.75;
+
 const mapW=1277, mapH=934; // Dimensions for no-trees-map.png
 const map = L.map('map', { 
   crs: L.CRS.Simple, 
@@ -365,18 +376,20 @@ const map = L.map('map', {
   zoomSnap: 0.25,
   zoomDelta: 0.25,
   wheelPxPerZoomLevel: 120,
-  maxBounds: [[0,0], [mapH,mapW]],
-  maxBoundsViscosity: 0.8,
+  maxBounds: [[-mapH*0.25, -mapW*0.25], [mapH*1.25, mapW*1.25]], // Allow 25% scroll past edges
+  maxBoundsViscosity: 0.5, // Make bounds less strict
   // Add settings to control pan behavior
   bounceAtZoomLimits: false,
   // Disable animations to prevent recursion
   zoomAnimation: false,
   fadeAnimation: false,
-  markerZoomAnimation: false
+  markerZoomAnimation: false,
+  // Center initial view
+  center: [mapH/2, mapW/2], 
+  zoom: initialZoom  // Use the calculated initialZoom
 });
 const bounds = [[0,0],[mapH,mapW]];
 L.imageOverlay('no-trees-map.png', bounds).addTo(map);
-map.fitBounds(bounds);  // Use fitBounds instead of setView
 
 // Function to ensure coordinates are within bounds
 function constrainToBounds(latlng) {
@@ -421,6 +434,22 @@ let selectedMarker = null;
 // Wait for map to be ready and fetch tree data
 map.whenReady(async () => {
   try {
+    // Add water droplets FIRST (before trees)
+    const hoseLocations = [
+      [692.06, 413.96],
+      [620.08, 367.97],
+      [561.09, 678.94],
+      [512.10, 626.95],
+      [403.12, 713.94],
+      [371.13, 726.94],
+      [452.11, 832.93],
+      [288.15, 922.92]
+    ];
+    
+    // Add water droplet markers before any trees
+    addWaterDroplets(hoseLocations);
+  
+    // Now add trees AFTER water droplets
     const treesSnapshot = await getDocs(collection(db, "trees"));
     
     treesSnapshot.forEach(doc => {
@@ -596,64 +625,18 @@ map.whenReady(async () => {
         const pos = map.project(e.target.getLatLng());
         const size = map.getSize();
         
+        // For mobile, add a bit more space to ensure popup is visible
+        const edgePadding = isMobile ? 150 : 100;
+        
         // Only pan if the popup would be off screen
-        if (pos.y < 100 || pos.y > size.y - 100 || pos.x < 100 || pos.x > size.x - 100) {
+        if (pos.y < edgePadding || pos.y > size.y - edgePadding || 
+            pos.x < edgePadding || pos.x > size.x - edgePadding) {
           map.setView(e.target.getLatLng(), map.getZoom(), {
             animate: false  // Disable animation for the pan
           });
         }
       });
     });
-
-    // Add static hose locations
-    const hoseLocations = [
-        [692.06, 413.96],
-        [620.08, 367.97],
-        [561.09, 678.94],
-        [512.10, 626.95],
-        [403.12, 713.94],
-        [371.13, 726.94],
-        [452.11, 832.93],
-        [288.15, 922.92]
-    ];
-
-    // Function to add water droplet markers
-    function addHoseMarkers() {
-        hoseLocations.forEach(location => {
-            const icon = L.divIcon({
-                html: '<span class="material-icons water-droplet">water_drop</span>',
-                className: 'water-droplet-marker',
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-            });
-            
-            L.marker(location, { icon }).addTo(map);
-        });
-    }
-
-    // Coordinate clicking functionality - disabled
-    /*
-    let coordinateMode = false;
-    const coordDisplay = document.getElementById('coordinate-display');
-    const coordToggle = document.getElementById('coordinate-toggle');
-
-    coordToggle.addEventListener('click', () => {
-        coordinateMode = !coordinateMode;
-        coordDisplay.style.display = coordinateMode ? 'block' : 'none';
-        coordToggle.style.backgroundColor = coordinateMode ? '#e3f2fd' : 'white';
-    });
-
-    map.on('click', (e) => {
-        if (coordinateMode) {
-            const coords = [e.latlng.lat, e.latlng.lng];
-            console.log(`[${coords[0]}, ${coords[1]}]`);
-            coordDisplay.textContent = `Coordinates: [${coords[0].toFixed(2)}, ${coords[1].toFixed(2)}]`;
-        }
-    });
-    */
-
-    // Add hose markers when map is ready
-    addHoseMarkers();
   } catch (error) {
     console.error("Error fetching trees:", error);
   }
@@ -746,6 +729,26 @@ window.toggleGroveTree = function(treeId, buttonElement) {
             marker.closePopup();
         }
     }, 300);
+};
+
+// Simple function to add water droplets
+function addWaterDroplets(locations) {
+    // Create the markers directly so they appear below trees in DOM order
+    locations.forEach(location => {
+        const icon = L.divIcon({
+            html: '<span class="material-icons water-droplet">water_drop</span>',
+            className: 'water-droplet-marker',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+        
+        // Create marker with lowest possible z-index
+        L.marker(location, { 
+            icon,
+            interactive: false,
+            zIndexOffset: -2000  // Very low z-index
+        }).addTo(map);
+    });
 }
 </script>
 </body>
