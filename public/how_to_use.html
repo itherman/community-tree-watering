@@ -9,17 +9,37 @@
     <style>
         body {
             position: relative;
-            padding-top: 20px;
+            padding-top: 0;
+            margin: 0;
         }
 
         header {
             position: relative;
             z-index: 1;
+            padding: 0 1rem;
+            margin: 0;
+            background: linear-gradient(to right, rgba(46, 125, 50, 0.1), rgba(46, 125, 50, 0.05));
+        }
+
+        header h1 {
+            font-size: 2rem;
+            text-align: center;
+            margin: 0;
+            padding: 0.5rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: var(--primary-green);
+        }
+
+        header h1 .material-icons {
+            font-size: 1.8rem;
         }
 
         .help-section {
             max-width: 800px;
-            margin: 2rem auto;
+            margin: 1rem auto;
             padding: 2rem;
             background: var(--card-bg);
             border-radius: 12px;
@@ -31,19 +51,40 @@
         .home-button {
             position: static !important;
             float: right !important;
-            margin: 1rem 2rem 2rem !important;
+            margin: 0 2rem 2rem !important;
             background: white !important;
             box-shadow: var(--shadow) !important;
         }
 
         @media (max-width: 768px) {
             body {
-                padding-top: 15px;
+                padding-top: 0;
             }
-            
+
+            header h1 {
+                font-size: 1.6rem;
+                margin: 0.25rem 0;
+                flex-wrap: wrap;
+            }
+
+            header h1 .material-icons {
+                font-size: 1.4rem;
+            }
+
             .help-section {
-                margin: 1.5rem 1rem;
-                padding: 1.5rem;
+                margin: 0.5rem;
+                padding: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 1.4rem;
+                line-height: 1.3;
+            }
+
+            header h1 .material-icons {
+                font-size: 1.2rem;
             }
         }
 
@@ -153,7 +194,7 @@
                 <span class="material-icons">warning</span>
                 <div class="feature-content">
                     <h4>Thirsty Trees</h4>
-                    <p>Trees that haven't been watered in over 7 days during "Must Water" or "Optional" periods are marked as thirsty with a 😫 emoji.</p>
+                    <p>Trees that haven't been watered in over 7 days during "Must Water" or "Optional" periods are marked as thirsty with the 😫 emoji.</p>
                 </div>
             </li>
             <li class="feature-item">
@@ -163,20 +204,25 @@
                     <p>View all trees on an interactive map, click on any tree to see its details, and record when you've watered it using the slider control.</p>
                 </div>
             </li>
+            <li class="feature-item">
+                <span class="material-icons">water_drop</span>
+                <div class="feature-content">
+                    <h4>Hose Locations</h4>
+                    <p>Blue water droplet icons 💧 on the map show you where to find hoses for watering. These community hoses are available for all residents to use in caring for our trees.</p>
+                </div>
+            </li>
         </ul>
 
         <h3>How to Water Trees</h3>
         <ol>
             <li>Check the homepage for the current watering recommendation from Casey Trees.</li>
-            <li>Look for trees marked as thirsty (😫) in either your Grove or the Thirsty Trees section.</li>
+            <li>Look for trees marked as thirsty 😫 in either your Grove or the Thirsty Trees section.</li>
             <li>Use the interactive map to locate the tree.</li>
+            <li>Find the nearest water source - look for the blue water droplet icons 💧 on the map which indicate hose locations.</li>
+            <li>Fill the tree's watering bag completely - this ensures proper deep watering of the roots.</li>
             <li>After watering, slide the watering confirmation slider to record your contribution.</li>
+            <li>Please remember to neatly wrap up the hose when you're finished to keep our community tidy and prevent tripping hazards.</li>
         </ol>
-
-        <div class="tip-box">
-            <strong>Pro Tip</strong>
-            <p>Add trees you regularly pass by to "My Grove" for quick access and monitoring. This helps ensure no tree goes too long without water.</p>
-        </div>
     </div>
 
     <footer>
@@ -186,14 +232,19 @@
                 Powered by Tree Huggers
                 <span class="material-icons">favorite</span>
             </div>
-            <div class="version-info">
-                <script>
-                    document.write(`${window.APP_VERSION.name} v${window.APP_VERSION.number} (${window.APP_VERSION.lastUpdated})`);
-                </script>
-            </div>
+            <div class="version-info" id="version-info"></div>
         </div>
     </footer>
 
     <script type="module" src="app.js"></script>
+    <script>
+      // Wait for APP_VERSION to be available
+      window.addEventListener('load', () => {
+        const versionInfo = document.getElementById('version-info');
+        if (window.APP_VERSION) {
+          versionInfo.textContent = `${window.APP_VERSION.name} v${window.APP_VERSION.number} (${window.APP_VERSION.lastUpdated})`;
+        }
+      });
+    </script>
 </body>
 </html> 

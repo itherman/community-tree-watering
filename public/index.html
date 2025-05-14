@@ -188,14 +188,19 @@
           Powered by Tree Huggers
           <span class="material-icons">favorite</span>
         </div>
-        <div class="version-info">
-          <script>
-            document.write(`${window.APP_VERSION.name} v${window.APP_VERSION.number} (${window.APP_VERSION.lastUpdated})`);
-          </script>
-        </div>
+        <div class="version-info" id="version-info"></div>
       </div>
     </footer>
 
     <script type="module" src="app.js"></script>
+    <script>
+      // Wait for APP_VERSION to be available
+      window.addEventListener('load', () => {
+        const versionInfo = document.getElementById('version-info');
+        if (window.APP_VERSION) {
+          versionInfo.textContent = `${window.APP_VERSION.name} v${window.APP_VERSION.number} (${window.APP_VERSION.lastUpdated})`;
+        }
+      });
+    </script>
   </body>
 </html>

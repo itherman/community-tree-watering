@@ -7,16 +7,18 @@ A web application for managing community tree watering, featuring integration wi
 ```
 ├── public/                 # Frontend static files
 │   ├── index.html         # Main application page
-│   ├── app.js            # Frontend JavaScript
-│   ├── firebase-init.js  # Firebase initialization
-│   ├── style.css        # Application styling
-│   └── 404.html         # Error page
+│   ├── how_to_use.html    # User guide page
+│   ├── hoa_trees_map.html # Interactive tree map
+│   ├── app.js             # Frontend JavaScript
+│   ├── firebase-init.js   # Firebase initialization
+│   ├── style.css          # Application styling
+│   ├── 404.html          # Error page
+│   ├── no-trees-map.png  # Empty map background
+│   └── new-tree-map.png  # Tree map background image
 ├── functions/             # Firebase Cloud Functions
-│   ├── index.js         # Backend functions
-│   └── package.json     # Backend dependencies
-├── hoa_trees_map.html    # Interactive tree map
-├── new-tree-map.png     # Tree map background image
-└── firebase.json        # Firebase configuration
+│   ├── index.js          # Backend functions
+│   └── package.json      # Backend dependencies
+└── firebase.json         # Firebase configuration
 ```
 
 ## Key Features
@@ -56,10 +58,14 @@ A web application for managing community tree watering, featuring integration wi
 ## Firebase Configuration
 - Project: community-tree-watering
 - Services: 
-  - Hosting
-  - Cloud Functions
+  - Hosting (public directory)
+  - Cloud Functions (Node.js)
   - Firestore Database
   - Anonymous Authentication
+- Configuration files:
+  - firebase.json: Main configuration
+  - .firebaserc: Project aliases
+  - firestore.rules: Database security rules
 
 ## Development Notes
 1. The frontend uses vanilla JavaScript with Firebase SDK
@@ -67,6 +73,9 @@ A web application for managing community tree watering, featuring integration wi
 3. Tree map uses custom coordinates system with image overlay
 4. Anonymous authentication enables user interaction without accounts
 5. Responsive design with mobile-first approach
+6. Node.js backend with Express for Cloud Functions
+7. User guide available at /how_to_use.html
+8. Separate map views for trees and empty state
 
 ## TODO
 1. Implement scheduled watering alert updates

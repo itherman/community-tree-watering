@@ -9,9 +9,9 @@ import { collection, addDoc, Timestamp, getDocs, query, orderBy, doc, getDoc, up
 
 // App version information
 const APP_VERSION = {
-    number: '1.0.0',
+    number: '1.0.1',
     name: 'Grove Guardian',
-    lastUpdated: '2024-03-19'
+    lastUpdated: '2025-05-14'
 };
 window.APP_VERSION = APP_VERSION; // Make available globally
 
@@ -242,35 +242,46 @@ async function displayWateringAlert(alertData) {
     
     currentWateringRecommendation = alertData.status;
     
+    // Check if we're on a page with watering recommendation elements
+    const wateringRecommendationDiv = document.getElementById('watering-recommendation');
+    if (!wateringRecommendationDiv) {
+        // We're on a different page (like how-to-use), so just return
+        return;
+    }
+    
     // Hide loading animation
-    const loadingContainer = document.querySelector('#watering-recommendation .loading-container');
-    loadingContainer.classList.remove('active');
+    const loadingContainer = wateringRecommendationDiv.querySelector('.loading-container');
+    if (loadingContainer) {
+        loadingContainer.classList.remove('active');
+    }
     
     // Show title and status
-    const titleElement = document.querySelector('#watering-recommendation h2');
-    titleElement.style.display = 'block';
+    const titleElement = wateringRecommendationDiv.querySelector('h2');
+    if (titleElement) {
+        titleElement.style.display = 'block';
+    }
     
     const statusElement = document.getElementById('casey-trees-alert-status');
-    statusElement.style.display = 'block';
-    statusElement.textContent = alertData.status;
+    if (statusElement) {
+        statusElement.style.display = 'block';
+        statusElement.textContent = alertData.status;
+    }
     
     if (caseyTreesAlertDetails) {
         caseyTreesAlertDetails.textContent = alertData.details;
-    }
-    
-    // Add last updated timestamp
-    const lastUpdateSpan = document.createElement('span');
-    lastUpdateSpan.className = 'last-updated';
-    const lastUpdated = alertData.lastUpdated?.toDate();
-    if (lastUpdated) {
-        lastUpdateSpan.textContent = `Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString()}`;
         
-        if (caseyTreesAlertDetails && caseyTreesAlertDetails.parentNode) {
-            const existingTimestamp = caseyTreesAlertDetails.parentNode.querySelector('.last-updated');
+        // Add last updated timestamp
+        const lastUpdateSpan = document.createElement('span');
+        lastUpdateSpan.className = 'last-updated';
+        const lastUpdated = alertData.lastUpdated?.toDate();
+        if (lastUpdated) {
+            lastUpdateSpan.textContent = `Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString()}`;
+            
+            const existingTimestamp = caseyTreesAlertDetails.parentNode?.querySelector('.last-updated');
             if (existingTimestamp) {
                 existingTimestamp.remove();
             }
-            caseyTreesAlertDetails.parentNode.insertBefore(lastUpdateSpan, caseyTreesAlertDetails.nextSibling);
+            caseyTreesAlertDetails.parentNode?.insertBefore(lastUpdateSpan, caseyTreesAlertDetails.nextSibling);
         }
     }
 }

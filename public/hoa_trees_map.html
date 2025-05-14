@@ -239,37 +239,15 @@
 
     /* Yellow halo for favorited trees */
     .tree-dot.favorited {
-      filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.9));
+        stroke: #1b5e20, rgba(255, 215, 0, 0.6);
+        stroke-width: 2px, 5px;
+        stroke-opacity: 1, 0.6;
     }
 
-    .tree-dot.favorited::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 32px;
-      height: 32px;
-      background: radial-gradient(
-        circle,
-        rgba(255, 215, 0, 0.8) 30%,
-        rgba(255, 215, 0, 0.4) 60%,
-        rgba(255, 215, 0, 0) 100%
-      );
-      border: 3px solid rgba(255, 215, 0, 1);
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      /* Remove any transition that might be inherited */
-      transition: none !important;
-    }
-
-    /* Ensure no transition on the tree dot itself */
+    /* Base tree dot styles */
     .tree-dot {
-      transition: none !important;
-    }
-
-    .tree-dot::before {
-      transition: none !important;
+        filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+        cursor: pointer;
     }
 
     /* Popup styles */
@@ -302,12 +280,6 @@
       transform: scale(0.9);
     }
 
-    /* Add styles for the tree dots */
-    .tree-dot {
-      filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
-      cursor: pointer;
-    }
-    
     /* Increase clickable area with padding */
     .leaflet-interactive.tree-dot {
       padding: 10px !important;
@@ -335,6 +307,23 @@
     .highlight-marker {
       animation: highlightPulse 0.75s ease-out 3;
     }
+
+    /* Water droplet icon styles */
+    .water-droplet {
+        color: #2196f3;
+        font-size: 24px;
+        filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
+        text-shadow: 0 0 2px white, 0 0 2px white, 0 0 2px white, 0 0 2px white;
+    }
+
+    /* Coordinate display styles - disabled */
+    #coordinate-display {
+        display: none !important;
+    }
+
+    #coordinate-toggle {
+        display: none !important;
+    }
   </style>
 </head>
 <body>
@@ -343,6 +332,11 @@
   Back to Home
 </button>
 <div id="map"></div>
+<div id="coordinate-display">Click anywhere to see coordinates</div>
+<button id="coordinate-toggle">
+    <span class="material-icons">add_location</span>
+    Toggle Coordinate Mode
+</button>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { auth, db, signInAnonymously } from './firebase-init.js';
@@ -370,11 +364,25 @@ const map = L.map('map', {
   zoomDelta: 0.25,
   wheelPxPerZoomLevel: 120,
   maxBounds: [[0,0], [mapH,mapW]],
-  maxBoundsViscosity: 1.0
+  maxBoundsViscosity: 0.8,
+  // Add settings to control pan behavior
+  bounceAtZoomLimits: false,
+  // Disable animations to prevent recursion
+  zoomAnimation: false,
+  fadeAnimation: false,
+  markerZoomAnimation: false
 });
 const bounds = [[0,0],[mapH,mapW]];
 L.imageOverlay('no-trees-map.png', bounds).addTo(map);
-map.setView([mapH/2, mapW/2], 0);
+map.fitBounds(bounds);  // Use fitBounds instead of setView
+
+// Function to ensure coordinates are within bounds
+function constrainToBounds(latlng) {
+    return [
+        Math.max(0, Math.min(mapH, latlng[0])),
+        Math.max(0, Math.min(mapW, latlng[1]))
+    ];
+}
 
 // Function to format date
 function formatDate(date) {
@@ -416,7 +424,7 @@ map.whenReady(async () => {
     treesSnapshot.forEach(doc => {
       const tree = doc.data();
       const treeId = doc.id;
-      const latlng = [tree.mapCoordinates.y, tree.mapCoordinates.x];
+      const latlng = constrainToBounds([tree.mapCoordinates.y, tree.mapCoordinates.x]);
       
       // Check if tree is in grove before creating popup content
       const myGrove = window.getMyGrove();
@@ -454,18 +462,18 @@ map.whenReady(async () => {
       `;
 
       const marker = L.circleMarker(latlng, {
-        radius: 10,
-        color: '#2d5a27',
+        radius: 12,
+        color: '#1b5e20',
         weight: 2,
-        fillColor: '#3d7a35',
-        fillOpacity: 1,
+        fillColor: '#43a047',
+        fillOpacity: 0.9,
         className: 'tree-dot',
         interactive: true
       })
       .bindPopup(popupContent, {
-        autoPan: true,
-        autoPanPadding: [50, 50],
-        keepInView: true
+        autoPan: false,  // Disable automatic panning
+        keepInView: false,  // Disable keep in view
+        autoPanPadding: [50, 50]
       })
       .addTo(map);
 
@@ -482,6 +490,17 @@ map.whenReady(async () => {
 
       // Set initial favorite state
       if (isInGrove) {
+        // Add yellow circle behind the tree marker
+        L.circleMarker(latlng, {
+          radius: 14,
+          color: 'rgba(255, 215, 0, 0.6)',
+          weight: 5,
+          fillOpacity: 0,
+          className: 'favorite-halo',
+          interactive: false,
+          pane: 'markerPane'  // Ensure proper layering
+        }).addTo(map);
+        
         marker.getElement().classList.add('favorited');
       }
 
@@ -546,18 +565,93 @@ map.whenReady(async () => {
         confirmText.classList.remove('visible');
       });
 
-      // Add a small brown dot underneath for the trunk
+      // Add a small brown trunk dot underneath
       L.circleMarker(latlng, {
-        radius: 3,
-        color: '#5d4037',
+        radius: 4,  // Slightly larger trunk
+        color: '#3e2723',  // Darker brown
         weight: 0,
-        fillColor: '#5d4037',
-        fillOpacity: 1,
+        fillColor: '#3e2723',
+        fillOpacity: 0.9,
         className: 'tree-trunk',
         offset: [2, 2],
         interactive: false
       }).addTo(map);
+
+      // Add a subtle leaf highlight
+      L.circleMarker(latlng, {
+        radius: 6,
+        color: '#66bb6a',  // Light green
+        weight: 0,
+        fillColor: '#66bb6a',
+        fillOpacity: 0.4,
+        className: 'tree-highlight',
+        offset: [-2, -2],
+        interactive: false
+      }).addTo(map);
+
+      // Add custom popup handling
+      marker.on('click', function(e) {
+        const pos = map.project(e.target.getLatLng());
+        const size = map.getSize();
+        
+        // Only pan if the popup would be off screen
+        if (pos.y < 100 || pos.y > size.y - 100 || pos.x < 100 || pos.x > size.x - 100) {
+          map.setView(e.target.getLatLng(), map.getZoom(), {
+            animate: false  // Disable animation for the pan
+          });
+        }
+      });
     });
+
+    // Add static hose locations
+    const hoseLocations = [
+        [692.06, 413.96],
+        [620.08, 367.97],
+        [561.09, 678.94],
+        [512.10, 626.95],
+        [403.12, 713.94],
+        [371.13, 726.94],
+        [452.11, 832.93],
+        [288.15, 922.92]
+    ];
+
+    // Function to add water droplet markers
+    function addHoseMarkers() {
+        hoseLocations.forEach(location => {
+            const icon = L.divIcon({
+                html: '<span class="material-icons water-droplet">water_drop</span>',
+                className: 'water-droplet-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            
+            L.marker(location, { icon }).addTo(map);
+        });
+    }
+
+    // Coordinate clicking functionality - disabled
+    /*
+    let coordinateMode = false;
+    const coordDisplay = document.getElementById('coordinate-display');
+    const coordToggle = document.getElementById('coordinate-toggle');
+
+    coordToggle.addEventListener('click', () => {
+        coordinateMode = !coordinateMode;
+        coordDisplay.style.display = coordinateMode ? 'block' : 'none';
+        coordToggle.style.backgroundColor = coordinateMode ? '#e3f2fd' : 'white';
+    });
+
+    map.on('click', (e) => {
+        if (coordinateMode) {
+            const coords = [e.latlng.lat, e.latlng.lng];
+            console.log(`[${coords[0]}, ${coords[1]}]`);
+            coordDisplay.textContent = `Coordinates: [${coords[0].toFixed(2)}, ${coords[1].toFixed(2)}]`;
+        }
+    });
+    */
+
+    // Add hose markers when map is ready
+    addHoseMarkers();
   } catch (error) {
     console.error("Error fetching trees:", error);
   }
@@ -611,6 +705,14 @@ window.toggleGroveTree = function(treeId, buttonElement) {
         icon.style.color = '#4CAF50';
         if (marker) {
             marker.getElement().classList.remove('favorited');
+            // Remove any existing halo
+            map.eachLayer((layer) => {
+                if (layer.options.className === 'favorite-halo' && 
+                    layer.getLatLng().lat === marker.getLatLng().lat && 
+                    layer.getLatLng().lng === marker.getLatLng().lng) {
+                    map.removeLayer(layer);
+                }
+            });
         }
     } else {
         // Add to grove
@@ -619,6 +721,17 @@ window.toggleGroveTree = function(treeId, buttonElement) {
         icon.style.color = '#e53935';
         if (marker) {
             marker.getElement().classList.add('favorited');
+            const latlng = marker.getLatLng();
+            // Add yellow circle behind the tree marker
+            L.circleMarker(latlng, {
+                radius: 14,
+                color: 'rgba(255, 215, 0, 0.6)',
+                weight: 5,
+                fillOpacity: 0,
+                className: 'favorite-halo',
+                interactive: false,
+                pane: 'markerPane'  // Ensure proper layering
+            }).addTo(map);
         }
     }
     
