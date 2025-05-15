@@ -335,6 +335,48 @@ async function loadTrees() {
             return statusStr.toLowerCase().replace(/_/g, '-'); // Handles WATER_SOON -> water-soon
         };
 
+        // New helper function to centralize display logic for tree statuses
+        function getTreeDisplayDetails(statusConstant) {
+            let rawMessage = "";
+            // cssClassKey will be like "thirsty", "water-soon", derived from statusConstant
+            let cssClassKey = ""; 
+
+            switch (statusConstant) {
+                case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
+                    rawMessage = "😫 New tree, needs water!";
+                    // Visually treat as thirsty, so use THIRSTY's CSS key
+                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.THIRSTY);
+                    break;
+                case TREE_WATERING_STATUSES.THIRSTY:
+                    rawMessage = "😫 Needs water now!";
+                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.THIRSTY);
+                    break;
+                case TREE_WATERING_STATUSES.WATER_SOON:
+                    rawMessage = "💧 Water within 3 days"; // User's preference (no period)
+                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.WATER_SOON);
+                    break;
+                case TREE_WATERING_STATUSES.NEVER_WATERED_OKAY:
+                    rawMessage = "New tree, conditions good.";
+                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.OKAY);
+                    break;
+                case TREE_WATERING_STATUSES.OKAY:
+                    rawMessage = ""; // No specific message for "Okay"
+                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.OKAY);
+                    break;
+                case TREE_WATERING_STATUSES.DONT_WATER:
+                    rawMessage = ""; // No specific message for "Don't Water"
+                    // Visually treat as Okay for general styling if needed
+                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.OKAY); 
+                    break;
+                default:
+                    // Fallback for any unknown status
+                    rawMessage = "";
+                    cssClassKey = "unknown";
+            }
+            // Return the original statusConstant as well, as it's useful for logic
+            return { rawMessage, cssClassKey, statusConstant };
+        }
+
         // Renamed function: Determines the watering status of a tree
         const getTreeWateringStatus = (tree) => {
             // Delegate to the centralized utility function
@@ -364,55 +406,34 @@ async function loadTrees() {
                     const wateringStatusResult = getTreeWateringStatus(tree);
                     const lastWateredDateStr = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
                     
-                    let statusEmoji = '';
-                    let statusMessage = '';
-                    let itemClass = 'grove'; // Base class for grove items
-                    let computedStatusForCss = ''; // Will be derived from TREE_WATERING_STATUSES
-
-                    // Updated logic to use TREE_WATERING_STATUSES
-                    switch (wateringStatusResult) {
-                        case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
-                            computedStatusForCss = TREE_WATERING_STATUSES.THIRSTY; // Treat as thirsty for CSS/UI
-                            statusEmoji = '<span class="thirsty-emoji">😫</span>';
-                            statusMessage = '<span class="tree-status-message thirsty">New tree, needs water!</span>';
-                            break;
-                        case TREE_WATERING_STATUSES.THIRSTY:
-                            computedStatusForCss = TREE_WATERING_STATUSES.THIRSTY;
-                            statusEmoji = '<span class="thirsty-emoji">😫</span>';
-                            statusMessage = '<span class="tree-status-message thirsty">Needs water now!</span>';
-                            break;
-                        case TREE_WATERING_STATUSES.WATER_SOON:
-                            computedStatusForCss = TREE_WATERING_STATUSES.WATER_SOON;
-                            statusEmoji = '<span class="water-soon-emoji">💧</span>';
-                            statusMessage = '<span class="tree-status-message water-soon">Water within 3 days.</span>';
-                            break;
-                        case TREE_WATERING_STATUSES.NEVER_WATERED_OKAY:
-                            computedStatusForCss = TREE_WATERING_STATUSES.OKAY;
-                            statusMessage = '<span class="tree-status-message okay">New tree, conditions good.</span>';
-                            break;
-                        case TREE_WATERING_STATUSES.OKAY:
-                        case TREE_WATERING_STATUSES.DONT_WATER: // DONT_WATER also implies OKAY for general display here
-                            computedStatusForCss = TREE_WATERING_STATUSES.OKAY;
-                            // No specific emoji or message for OKAY/DONT_WATER in My Grove
-                            break;
+                    const displayDetails = getTreeDisplayDetails(wateringStatusResult); // Use new helper
+                    
+                    let statusMessageHTML = '';
+                    if (displayDetails.rawMessage) {
+                        statusMessageHTML = `<span class="tree-status-message ${displayDetails.cssClassKey}">${displayDetails.rawMessage}</span>`;
                     }
 
-                    // Add alert class if not okay/dont_water
-                    if (computedStatusForCss === TREE_WATERING_STATUSES.THIRSTY || computedStatusForCss === TREE_WATERING_STATUSES.WATER_SOON) {
-                         itemClass += ` ${getStatusCssClass(computedStatusForCss)}-alert`;
+                    let itemClass = 'grove'; 
+                    // Determine if an alert class should be added based on the status
+                    switch (displayDetails.statusConstant) {
+                        case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
+                        case TREE_WATERING_STATUSES.THIRSTY:
+                        case TREE_WATERING_STATUSES.WATER_SOON:
+                            itemClass += ` ${displayDetails.cssClassKey}-alert`;
+                            break;
+                        // Other statuses (OKAY, DONT_WATER, NEVER_WATERED_OKAY) don't get an alert class here
                     }
 
                     myGroveHTML += `
                         <li class="tree-item ${itemClass}" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
                             <div class="tree-info">
                                 <strong>
-                                    ${statusEmoji}
                                     ${tree.commonName || 'Unknown Tree'}
                                     <span class="material-icons favorite-icon-my-grove" style="color: #e53935; font-size: 18px; vertical-align: middle; margin-left: 6px;">
                                         favorite
                                     </span>
                                 </strong>
-                                ${statusMessage}
+                                ${statusMessageHTML}
                                 <span class="last-watered">Last watered: ${lastWateredDateStr}</span>
                             </div>
                         </li>
@@ -445,47 +466,34 @@ async function loadTrees() {
             
             const wateringStatusResult = getTreeWateringStatus(tree);
             const lastWateredDateStr = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
+            
+            const displayDetails = getTreeDisplayDetails(wateringStatusResult); // Use new helper
+
             let listItemHTML = '';
             let listToAdd = null;
 
-            let statusForCss = ''; // Will be derived from TREE_WATERING_STATUSES
-            let message = '';
-            let emoji = '';
-
-            // Updated logic to use TREE_WATERING_STATUSES for general lists
-            switch (wateringStatusResult) {
+            // Determine which list the tree belongs to, based on its statusConstant
+            switch (displayDetails.statusConstant) {
                 case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
-                    statusForCss = TREE_WATERING_STATUSES.THIRSTY; // Treat as thirsty
-                    message = 'New tree, needs water!';
-                    emoji = '😫';
-                    listToAdd = 'thirsty';
-                    break;
                 case TREE_WATERING_STATUSES.THIRSTY:
-                    statusForCss = TREE_WATERING_STATUSES.THIRSTY;
-                    message = 'Needs water now!';
-                    emoji = '😫';
                     listToAdd = 'thirsty';
                     break;
                 case TREE_WATERING_STATUSES.WATER_SOON:
-                    statusForCss = TREE_WATERING_STATUSES.WATER_SOON;
-                    message = 'Water within 3 days.';
-                    emoji = '💧';
                     listToAdd = 'waterSoon';
                     break;
-                case TREE_WATERING_STATUSES.OKAY:
-                case TREE_WATERING_STATUSES.NEVER_WATERED_OKAY:
-                case TREE_WATERING_STATUSES.DONT_WATER:
-                    // These are not added to the general Thirsty/Water Soon lists
-                    return; 
+                // For OKAY, DONT_WATER, NEVER_WATERED_OKAY, tree is not added to these general lists.
+                default:
+                    return; // Skip this tree if it doesn't fall into thirsty or waterSoon categories
             }
 
             if (listToAdd) {
-                const cssClassPrefix = getStatusCssClass(statusForCss);
+                // displayDetails.rawMessage contains the text with emoji
+                // displayDetails.cssClassKey is the base for class names (e.g., "thirsty", "water-soon")
                 listItemHTML = `
-                    <li class="tree-item ${cssClassPrefix}-alert" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
+                    <li class="tree-item ${displayDetails.cssClassKey}-alert" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
                         <div class="tree-info">
-                            <strong><span class="${cssClassPrefix}-emoji">${emoji}</span>${tree.commonName || 'Unknown Tree'}</strong>
-                            <span class="tree-status-message ${cssClassPrefix}">${message}</span>
+                            <strong>${tree.commonName || 'Unknown Tree'}</strong>
+                            <span class="tree-status-message ${displayDetails.cssClassKey}">${displayDetails.rawMessage}</span>
                             <span class="last-watered">Last watered: ${lastWateredDateStr}</span>
                         </div>
                     </li>
