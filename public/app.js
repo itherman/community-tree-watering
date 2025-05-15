@@ -1,6 +1,7 @@
 // Import necessary Firebase services and functions from firebase-init.js
 import { auth, db, signInAnonymously } from './firebase-init.js';
 import { collection, addDoc, Timestamp, getDocs, query, orderBy, doc, getDoc, updateDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+import { calculateTreeWateringStatus, TREE_WATERING_STATUSES } from './treeUtils.js'; // Added import
 // Note: Importing directly from an HTML file like this is unconventional.
 // A better practice would be to have a firebaseInit.js that exports these, 
 // and both index.html and app.js import from there.
@@ -268,14 +269,24 @@ async function displayWateringAlert(alertData) {
     }
     
     if (caseyTreesAlertDetails) {
-        caseyTreesAlertDetails.textContent = alertData.details;
+        let detailsText = alertData.details;
+        const caseyTreesPhrase = "Casey Trees";
+        const caseyTreesLinkHTML = '<a href="https://caseytrees.org/water/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline; cursor: pointer;">Casey Trees</a>';
+
+        // Replace "Casey Trees" with the styled link if present
+        if (detailsText && detailsText.includes(caseyTreesPhrase)) {
+            detailsText = detailsText.replace(new RegExp(caseyTreesPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), caseyTreesLinkHTML);
+            caseyTreesAlertDetails.innerHTML = detailsText;
+        } else {
+            caseyTreesAlertDetails.textContent = detailsText; // Fallback to textContent if no replacement
+        }
         
         // Add last updated timestamp
         const lastUpdateSpan = document.createElement('span');
         lastUpdateSpan.className = 'last-updated';
         const lastUpdated = alertData.lastUpdated?.toDate();
         if (lastUpdated) {
-            lastUpdateSpan.textContent = `Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString()}`;
+             lastUpdateSpan.textContent = `Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString()}`;
             
             const existingTimestamp = caseyTreesAlertDetails.parentNode?.querySelector('.last-updated');
             if (existingTimestamp) {
@@ -308,40 +319,39 @@ async function loadTrees() {
 
         // Hide loading animation
         const loadingContainer = document.querySelector('#tree-list .loading-container');
-        loadingContainer.classList.remove('active');
+        if (loadingContainer) {
+            loadingContainer.classList.remove('active');
+        }
 
         if (querySnapshot.empty) {
-            treeListDiv.innerHTML = '<h2>Thirsty Trees</h2><p>No trees found in the database.</p>';
+            treeListDiv.innerHTML = '<h2>Tree Status</h2><p>No trees found in the database.</p>';
             return;
         }
 
-        let htmlContent = '';
+        let myGroveHTML = '';
+        let thirstyTreesHTML = '<div class="list-section-header"><h2>Thirsty Trees <span class="thirsty-emoji">😫</span></h2></div><ul class="thirsty-tree-list">';
+        let waterSoonTreesHTML = '<div class="list-section-header"><h2>Needs Watering Soon <span class="water-soon-emoji">💧</span></h2></div><ul class="water-soon-tree-list">';
+        
         let thirstyTreeCount = 0;
-        const thirstyTrees = new Set(); // Keep track of thirsty trees
+        let waterSoonTreeCount = 0;
+        const processedForMyGrove = new Set();
 
-        // Function to check if a tree is thirsty
-        const isTreeThirsty = (tree) => {
-            if (currentWateringRecommendation === "Don't Water") {
-                return false;
-            }
-            
-            const now = new Date();
-            if (!tree.lastWateredDate) {
-                return currentWateringRecommendation === "Must Water" || 
-                       currentWateringRecommendation === "Optional";
-            }
-            
-            const lastWateredDate = tree.lastWateredDate.toDate();
-            const daysSinceWatered = Math.floor((now - lastWateredDate) / (24 * 60 * 60 * 1000));
-            return daysSinceWatered > 7 && 
-                   (currentWateringRecommendation === "Must Water" || 
-                    currentWateringRecommendation === "Optional");
+        // Helper to get consistent CSS class prefix from status strings
+        const getStatusCssClass = (statusStr) => {
+            if (!statusStr) return '';
+            return statusStr.toLowerCase().replace(/_/g, '-'); // Handles WATER_SOON -> water-soon
         };
 
-        // Get My Grove trees
-        const myGrove = getMyGrove();
-        if (myGrove.length > 0) {
-            htmlContent = `<div class="grove-header">
+        // Renamed function: Determines the watering status of a tree
+        const getTreeWateringStatus = (tree) => {
+            // Delegate to the centralized utility function
+            return calculateTreeWateringStatus(tree, 'lastWateredDate', currentWateringRecommendation);
+        };
+
+        // --- MY GROVE SECTION ---
+        const myGroveTreeIds = getMyGrove(); // Renamed for clarity
+        if (myGroveTreeIds.length > 0) {
+            myGroveHTML = `<div class="grove-header">
                 <div class="title-row">
                     <span class="material-icons">park</span>
                     <h2>My Grove</h2>
@@ -349,89 +359,210 @@ async function loadTrees() {
                 </div>
             </div><ul class="grove-tree-list">`;
             
-            // Create a map of tree data for quick lookup
             const treeDataMap = new Map();
             querySnapshot.forEach(doc => {
                 treeDataMap.set(doc.id, { ...doc.data(), id: doc.id });
             });
             
-            // Add My Grove trees
-            myGrove.forEach(treeId => {
+            myGroveTreeIds.forEach(treeId => {
                 const tree = treeDataMap.get(treeId);
                 if (tree) {
-                    const lastWateredDate = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
-                    const treeIsThirsty = isTreeThirsty(tree);
-                    if (treeIsThirsty) {
-                        thirstyTrees.add(treeId); // Add to thirsty set to avoid duplicate listing
+                    processedForMyGrove.add(treeId); // Mark as processed for My Grove
+                    const wateringStatusResult = getTreeWateringStatus(tree);
+                    const lastWateredDateStr = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
+                    
+                    let statusEmoji = '';
+                    let statusMessage = '';
+                    let itemClass = 'grove'; // Base class for grove items
+                    let computedStatusForCss = ''; // Will be derived from TREE_WATERING_STATUSES
+
+                    // Updated logic to use TREE_WATERING_STATUSES
+                    switch (wateringStatusResult) {
+                        case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
+                            computedStatusForCss = TREE_WATERING_STATUSES.THIRSTY; // Treat as thirsty for CSS/UI
+                            statusEmoji = '<span class="thirsty-emoji">😫</span>';
+                            statusMessage = '<span class="tree-status-message thirsty">New tree, needs water!</span>';
+                            break;
+                        case TREE_WATERING_STATUSES.THIRSTY:
+                            computedStatusForCss = TREE_WATERING_STATUSES.THIRSTY;
+                            statusEmoji = '<span class="thirsty-emoji">😫</span>';
+                            statusMessage = '<span class="tree-status-message thirsty">Needs water now!</span>';
+                            break;
+                        case TREE_WATERING_STATUSES.WATER_SOON:
+                            computedStatusForCss = TREE_WATERING_STATUSES.WATER_SOON;
+                            statusEmoji = '<span class="water-soon-emoji">💧</span>';
+                            statusMessage = '<span class="tree-status-message water-soon">Water within 3 days.</span>';
+                            break;
+                        case TREE_WATERING_STATUSES.NEVER_WATERED_OKAY:
+                            computedStatusForCss = TREE_WATERING_STATUSES.OKAY;
+                            statusMessage = '<span class="tree-status-message okay">New tree, conditions good.</span>';
+                            break;
+                        case TREE_WATERING_STATUSES.OKAY:
+                        case TREE_WATERING_STATUSES.DONT_WATER: // DONT_WATER also implies OKAY for general display here
+                            computedStatusForCss = TREE_WATERING_STATUSES.OKAY;
+                            // No specific emoji or message for OKAY/DONT_WATER in My Grove
+                            break;
                     }
-                    htmlContent += `
-                        <li class="tree-item grove" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
+
+                    // Add alert class if not okay/dont_water
+                    if (computedStatusForCss === TREE_WATERING_STATUSES.THIRSTY || computedStatusForCss === TREE_WATERING_STATUSES.WATER_SOON) {
+                         itemClass += ` ${getStatusCssClass(computedStatusForCss)}-alert`;
+                    }
+
+                    myGroveHTML += `
+                        <li class="tree-item ${itemClass}" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
                             <div class="tree-info">
                                 <strong>
-                                    <span class="material-icons" style="color: #e53935; font-size: 16px; vertical-align: text-bottom;">
+                                    ${statusEmoji}
+                                    ${tree.commonName || 'Unknown Tree'}
+                                    <span class="material-icons favorite-icon-my-grove" style="color: #e53935; font-size: 18px; vertical-align: middle; margin-left: 6px;">
                                         favorite
                                     </span>
-                                    ${treeIsThirsty ? '<span class="thirsty-emoji">😫</span>' : ''}
-                                    ${tree.commonName || 'Unknown Tree'}
                                 </strong>
-                                <span class="last-watered">Last watered: ${lastWateredDate}</span>
+                                ${statusMessage}
+                                <span class="last-watered">Last watered: ${lastWateredDateStr}</span>
                             </div>
                         </li>
                     `;
                 }
             });
-            
-            htmlContent += '</ul>';
+            myGroveHTML += '</ul>';
         }
 
-        // Don't show thirsty trees if Casey Trees says don't water
+        // --- GENERAL TREE LISTS (THIRSTY & WATER SOON) ---
+        // Global "Don't Water" override for all lists below My Grove
         if (currentWateringRecommendation === "Don't Water") {
-            if (!myGrove.length) {
-                treeListDiv.innerHTML = '<p class="happy-trees">All trees are happily hydrated thanks to the rain! 🌧️</p>';
-            } else {
-                treeListDiv.innerHTML = htmlContent + '<h2>Thirsty Trees</h2><p class="happy-trees">All trees are happily hydrated thanks to the rain! 🌧️</p>';
+            let happyMessage = '<p class="happy-trees">All trees are happily hydrated thanks to the rain! 🌧️</p>';
+            if (myGroveTreeIds.length > 0) { // If My Grove is shown, append message after it.
+                treeListDiv.innerHTML = myGroveHTML + happyMessage;
+            } else { // Otherwise, just show the message.
+                treeListDiv.innerHTML = happyMessage;
             }
             return;
         }
 
-        // Add Thirsty Trees section
-        let thirstyContent = '<h2>Thirsty Trees</h2>';
         querySnapshot.forEach((doc) => {
             const tree = doc.data();
             const treeId = doc.id;
             
-            // Skip if this tree is already shown in My Grove
-            if (thirstyTrees.has(treeId)) {
+            // Skip if this tree was already displayed in My Grove
+            if (processedForMyGrove.has(treeId)) {
                 return;
             }
             
-            if (isTreeThirsty(tree)) {
-                if (thirstyTreeCount === 0) {
-                    thirstyContent += '<ul class="thirsty-tree-list">';
-                }
-                thirstyTreeCount++;
-                const lastWateredDate = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
-                thirstyContent += `
-                    <li class="tree-item thirsty" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
+            const wateringStatusResult = getTreeWateringStatus(tree);
+            const lastWateredDateStr = tree.lastWateredDate ? tree.lastWateredDate.toDate().toLocaleDateString() : 'Never';
+            let listItemHTML = '';
+            let listToAdd = null;
+
+            let statusForCss = ''; // Will be derived from TREE_WATERING_STATUSES
+            let message = '';
+            let emoji = '';
+
+            // Updated logic to use TREE_WATERING_STATUSES for general lists
+            switch (wateringStatusResult) {
+                case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
+                    statusForCss = TREE_WATERING_STATUSES.THIRSTY; // Treat as thirsty
+                    message = 'New tree, needs water!';
+                    emoji = '😫';
+                    listToAdd = 'thirsty';
+                    break;
+                case TREE_WATERING_STATUSES.THIRSTY:
+                    statusForCss = TREE_WATERING_STATUSES.THIRSTY;
+                    message = 'Needs water now!';
+                    emoji = '😫';
+                    listToAdd = 'thirsty';
+                    break;
+                case TREE_WATERING_STATUSES.WATER_SOON:
+                    statusForCss = TREE_WATERING_STATUSES.WATER_SOON;
+                    message = 'Water within 3 days.';
+                    emoji = '💧';
+                    listToAdd = 'waterSoon';
+                    break;
+                case TREE_WATERING_STATUSES.OKAY:
+                case TREE_WATERING_STATUSES.NEVER_WATERED_OKAY:
+                case TREE_WATERING_STATUSES.DONT_WATER:
+                    // These are not added to the general Thirsty/Water Soon lists
+                    return; 
+            }
+
+            if (listToAdd) {
+                const cssClassPrefix = getStatusCssClass(statusForCss);
+                listItemHTML = `
+                    <li class="tree-item ${cssClassPrefix}-alert" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
                         <div class="tree-info">
-                            <strong><span class="thirsty-emoji">😫</span>${tree.commonName || 'Unknown Tree'}</strong>
-                            <span class="last-watered">Last watered: ${lastWateredDate}</span>
+                            <strong><span class="${cssClassPrefix}-emoji">${emoji}</span>${tree.commonName || 'Unknown Tree'}</strong>
+                            <span class="tree-status-message ${cssClassPrefix}">${message}</span>
+                            <span class="last-watered">Last watered: ${lastWateredDateStr}</span>
                         </div>
                     </li>
                 `;
+                if (listToAdd === 'thirsty') {
+                    thirstyTreeCount++;
+                    thirstyTreesHTML += listItemHTML;
+                } else if (listToAdd === 'waterSoon') {
+                    waterSoonTreeCount++;
+                    waterSoonTreesHTML += listItemHTML;
+                }
             }
         });
 
-        if (thirstyTreeCount === 0) {
-            thirstyContent += '<p class="happy-trees">All our trees are happy and well-watered! 🌳 ✨</p>';
-        } else {
-            thirstyContent += '</ul>';
+        thirstyTreesHTML += '</ul>';
+        waterSoonTreesHTML += '</ul>';
+
+        let finalHTML = myGroveHTML; // Start with My Grove content (if any)
+
+        if (thirstyTreeCount > 0) {
+            finalHTML += thirstyTreesHTML;
+        }
+        if (waterSoonTreeCount > 0) {
+            finalHTML += waterSoonTreesHTML;
         }
 
-        treeListDiv.innerHTML = myGrove.length ? htmlContent + thirstyContent : thirstyContent;
+        // Simplified logic for the "happy trees" message
+        const hasMyGroveItems = myGroveTreeIds.length > 0;
+        let hasAlertsInMyGrove = false;
+        if (hasMyGroveItems) {
+            hasAlertsInMyGrove = myGroveTreeIds.some(id => {
+                const treeData = querySnapshot.docs.find(d => d.id === id)?.data();
+                if (!treeData) return false;
+                const status = getTreeWateringStatus(treeData);
+                // Updated logic to use TREE_WATERING_STATUSES
+                return status === TREE_WATERING_STATUSES.THIRSTY || 
+                       status === TREE_WATERING_STATUSES.WATER_SOON || 
+                       status === TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION;
+            });
+        }
+
+        if (currentWateringRecommendation !== "Don't Water") {
+            if (!hasMyGroveItems && thirstyTreeCount === 0 && waterSoonTreeCount === 0) {
+                // No My Grove, no thirsty, no water soon -> happy message takes full space
+                finalHTML = '<p class="happy-trees">All our trees are happy and well-watered! 🌳 ✨</p>';
+            } else if (hasMyGroveItems && !hasAlertsInMyGrove && thirstyTreeCount === 0 && waterSoonTreeCount === 0) {
+                // My Grove exists and has no alerts, and general lists are empty -> append happy message to My Grove
+                finalHTML += '<p class="happy-trees">All our trees are happy and well-watered! 🌳 ✨</p>';
+            } else if (finalHTML === '' || finalHTML === myGroveHTML && !hasAlertsInMyGrove && thirstyTreeCount === 0 && waterSoonTreeCount === 0 ){
+                // Fallback in case MyGroveHTML was empty and the general lists also are empty.
+                // Or if MyGroveHTML was present but had no alerts AND the general lists are empty.
+                // This condition essentially ensures if no alerts are shown anywhere, the happy message appears.
+                // This handles the case where myGroveTreeIds.length > 0 but all trees in it are 'OKAY' or 'DONT_WATER',
+                // and the general lists are also empty.
+                finalHTML = myGroveHTML; // Keep My Grove if it has non-alert items
+                if (!hasAlertsInMyGrove && thirstyTreeCount === 0 && waterSoonTreeCount === 0) {
+                    finalHTML += '<p class="happy-trees">All our trees are happy and well-watered! 🌳 ✨</p>';
+                    if (!hasMyGroveItems) { // If My Grove was totally empty ensure only happy message
+                        finalHTML = '<p class="happy-trees">All our trees are happy and well-watered! 🌳 ✨</p>';
+                    }
+                }
+            }
+        }
+        // If currentWateringRecommendation IS "Don't Water", the happy message is already handled earlier.
+
+        treeListDiv.innerHTML = finalHTML;
 
     } catch (error) {
-        treeListDiv.innerHTML = '<h2>Thirsty Trees</h2><p>Error loading trees. Please try refreshing the page.</p>';
+        console.error("Error in loadTrees:", error);
+        treeListDiv.innerHTML = '<h2>Tree Status</h2><p>Error loading tree statuses. Please try refreshing the page.</p>';
     }
 }
 

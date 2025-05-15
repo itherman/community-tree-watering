@@ -178,10 +178,12 @@ footer .material-icons {
     color: var(--text-secondary);
 }
 
-.thirsty-tree-list {
+.thirsty-tree-list,
+.water-soon-tree-list {
+    padding-left: 0;
     list-style: none;
-    padding: 0;
-    margin: 0;
+    margin-top: 0;
+    margin-bottom: 20px; /* Add some space before the next section or end of card */
 }
 
 /* Map button styling */
@@ -858,4 +860,151 @@ footer .material-icons {
         margin-bottom: 0.875rem;
         font-size: 0.95rem;
     }
+}
+
+/* Thirsty and Water Soon Tree Styling */
+.tree-item.thirsty-alert {
+    border-left: 5px solid #e53935; /* Bright red */
+    background-color: rgba(229, 57, 53, 0.05);
+}
+
+.tree-item.water-soon-alert {
+    border-left: 5px solid #ff9800; /* Orange */
+    background-color: rgba(255, 152, 0, 0.05);
+}
+
+.tree-info strong .thirsty-emoji,
+.tree-info strong .water-soon-emoji {
+    font-size: 1.2em; /* Ensure emojis are a good size */
+    margin-right: 6px;
+}
+
+.tree-status-message {
+    display: block;
+    font-size: 0.9em;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: #fff; /* Default white text, background will set contrast */
+}
+
+.tree-status-message.thirsty {
+    background-color: #e53935; /* Bright red */
+    color: white;
+}
+
+.tree-status-message.water-soon {
+    background-color: #ff9800; /* Orange */
+    color: white;
+}
+
+/* Styling for headings of the tree lists */
+#tree-list h2 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 1.5em;
+    color: #333;
+    margin-top: 0; /* Removed, now handled by .list-section-header */
+    margin-bottom: 0; /* Removed, now handled by .list-section-header */
+    border-bottom: none; /* Removed, header div provides separation */
+    padding-bottom: 0; /* Removed */
+}
+
+#tree-list h2 .thirsty-emoji,
+#tree-list h2 .water-soon-emoji {
+    font-size: 1.1em; /* Emojis in headings */
+}
+
+/* Existing .tree-item styles will apply for base structure */
+.tree-item {
+    background: #fff;
+    border: 1px solid #ddd;
+    /* border-left is overridden by alert types */
+    margin-bottom: 10px;
+    padding: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.tree-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.tree-item.grove {
+    /* Keep distinct styling for My Grove items if not in alert state */
+    /* background: linear-gradient(to right, #f3e5f5, #e8f5e9); */ /* Original grove background */
+    /* If it's also an alert, the alert background will take precedence or mix. */
+    /* For simplicity, alert backgrounds will override this specific gradient. */
+    /* The border-left from thirsty/water-soon will override grove's default. */
+}
+
+.tree-item.grove:not(.thirsty-alert):not(.water-soon-alert) {
+    border-left: 4px solid #4CAF50; /* Green for OK grove items */
+    background-color: rgba(76, 175, 80, 0.03);
+}
+
+.tree-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px; /* Increased gap for better spacing with status message */
+}
+
+.tree-info strong {
+    color: #2e7d32; /* Default strong color */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 1.1em;
+}
+
+.tree-info .last-watered {
+    font-size: 0.85em;
+    color: #555;
+}
+
+.happy-trees {
+    text-align: center;
+    padding: 20px;
+    font-size: 1.1em;
+    color: #2e7d32;
+    background-color: rgba(46, 125, 50, 0.05);
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+/* Remove default padding from general tree lists for alignment */
+.thirsty-tree-list,
+.water-soon-tree-list {
+    padding-left: 0;
+    list-style: none; /* Ensure no bullets appear */
+    margin-top: 0; /* Align closer to heading if needed */
+    margin-bottom: 20px; /* Add some space before the next section or end of card */
+}
+
+#tree-list h2 .thirsty-emoji,
+#tree-list h2 .water-soon-emoji { /* Added for completeness if we use distinct emoji class */
+    font-size: 1.1em; /* Emojis in headings */
+}
+
+/* Add bottom margin to My Grove list for separation */
+.grove-tree-list {
+    padding-left: 0;
+    list-style: none;
+    margin-top: 0; /* Align closer to heading if needed */
+    margin-bottom: 40px; /* Increased margin for separation */
+}
+
+/* New styles for list section headers, mimicking grove-header */
+.list-section-header {
+    background-color: rgba(46, 125, 50, 0.03); /* Light green tint */
+    border-radius: 12px;
+    padding: 15px 20px; /* Adjusted padding slightly */
+    margin-top: 40px; /* This was previously on #tree-list h2 */
+    margin-bottom: 20px; /* Space before the ul */
 } 

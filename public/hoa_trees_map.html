@@ -255,12 +255,36 @@
     /* Popup styles */
     .popup-title strong {
       font-size: 1.1em;
-      display: inline-block;
-      margin-bottom: 2px;
+      margin-bottom: 0;
+      line-height: 1.2;
     }
 
     .popup-title {
-      flex-grow: 1;
+    }
+
+    .popup-header-content {
+        margin-bottom: 8px;
+    }
+
+    .popup-main-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .tree-name-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-grow: 1;
+    }
+
+    .popup-scientific-name {
+        font-size: 0.9em;
+        color: #555;
+        margin-bottom: 8px;
     }
 
     .popup-heart {
@@ -310,6 +334,27 @@
       animation: highlightPulse 0.75s ease-out 3;
     }
 
+    /* Status Message Styling for Popups */
+    .popup-status-message {
+      font-size: 0.8em;
+      margin-top: 0;
+      margin-bottom: 0;
+      padding: 4px 7px;
+      border-radius: 5px;
+      color: white;
+      text-align: center;
+      font-weight: 500;
+      flex-shrink: 0;
+      max-width: 75px;
+      white-space: nowrap;
+    }
+    .popup-status-message.thirsty {
+      background-color: #e53935; /* Bright red */
+    }
+    .popup-status-message.water-soon {
+      background-color: #ff9800; /* Orange */
+    }
+
     /* Water droplet icon styles */
     .water-droplet {
         color: #2196f3;
@@ -348,7 +393,8 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { auth, db, signInAnonymously } from './firebase-init.js';
-import { doc, updateDoc, Timestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+import { doc, updateDoc, Timestamp, collection, getDocs, getDoc } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+import { calculateTreeWateringStatus, TREE_WATERING_STATUSES } from './treeUtils.js';
 
 // Define getMyGrove in global scope
 window.getMyGrove = function() {
@@ -431,6 +477,130 @@ const urlParams = new URLSearchParams(window.location.search);
 const selectedTreeId = urlParams.get('treeId') || urlParams.get('tree');
 let selectedMarker = null;
 
+// Helper function to calculate tree watering status for the map
+// Simplified version based on app.js logic - NOW REPLACED
+function getMapTreeWateringStatus(treeData, generalRecommendation) {
+    // Delegate to the centralized utility function
+    // Assuming treeData on map has 'lastWateredDate' field, similar to app.js trees
+    return calculateTreeWateringStatus(treeData, 'lastWateredDate', generalRecommendation);
+}
+
+// Helper function to create popup content
+function createPopupHTML(tree, treeId, isInGrove) {
+    const lastWateredFormatted = formatDate(tree.lastWateredDate);
+    const heartIcon = isInGrove ? 'favorite' : 'favorite_border';
+    const heartColor = isInGrove ? '#e53935' : '#4CAF50';
+    const heartTitle = isInGrove ? 'Remove from My Grove' : 'Add to My Grove';
+
+    const treeStatusResult = getMapTreeWateringStatus(tree, currentWateringRecommendation);
+    let statusMessageHTML = '';
+    switch (treeStatusResult) {
+        case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
+        case TREE_WATERING_STATUSES.THIRSTY:
+            statusMessageHTML = '<span class="popup-status-message thirsty">Water ASAP!</span>';
+            break;
+        case TREE_WATERING_STATUSES.WATER_SOON:
+            statusMessageHTML = '<span class="popup-status-message water-soon">Water Soon</span>';
+            break;
+    }
+
+    const heartButtonHTML = `
+        <button 
+            class="popup-heart" 
+            id="grove-btn-${treeId}" 
+            onclick="window.toggleGroveTree('${treeId}', this)" 
+            title="${heartTitle}">
+            <span class="material-icons" style="color: ${heartColor}; font-size: 20px;">
+              ${heartIcon}
+            </span>
+        </button>
+    `;
+
+    return `
+        <div class="popup-header-content">
+            <div class="popup-main-title">
+                <div class="tree-name-group">
+                    <strong>${tree.commonName || 'Tree'}</strong>
+                    ${heartButtonHTML}
+                </div>
+                ${statusMessageHTML}
+            </div>
+            <div class="popup-scientific-name">Scientific name: ${tree.botanicalName || '–'}</div>
+        </div>
+        <div class="popup-last-watered-line">
+          <div class="last-watered">Last watered: <span id="last-watered-${treeId}">${lastWateredFormatted}</span></div>
+        </div>
+        <div class="watering-slider-container">
+          <span class="slider-label">Slide to confirm watering</span>
+          <div class="slider-wrapper">
+            <div class="slider-fill" id="slider-fill-${treeId}"></div>
+            <input type="range" class="watering-slider" id="slider-${treeId}" 
+                   min="0" max="100" value="0">
+          </div>
+          <div class="confirmation-text" id="confirm-text-${treeId}">
+            Release to confirm watering
+          </div>
+        </div>
+    `;
+}
+
+// Helper function to setup watering slider event listeners
+function setupWateringSliderEvents(treeId, marker) {
+    const slider = document.getElementById(`slider-${treeId}`);
+    const sliderFill = document.getElementById(`slider-fill-${treeId}`);
+    const confirmText = document.getElementById(`confirm-text-${treeId}`);
+    let isUpdating = false;
+    let success = false;
+
+    if (!slider || !sliderFill || !confirmText) {
+        console.warn(`Slider elements not found for tree ${treeId}`);
+        return; 
+    }
+
+    slider.addEventListener('input', (e) => {
+        const value = parseInt(e.target.value);
+        sliderFill.style.width = `${value}%`;
+        confirmText.classList.toggle('visible', value > 90);
+    });
+
+    slider.addEventListener('change', async (e) => {
+        const value = parseInt(e.target.value);
+        if (value > 90 && !isUpdating) {
+            isUpdating = true;
+            confirmText.textContent = 'Updating...';
+            
+            success = await updateTreeWatering(treeId);
+            
+            if (success) {
+                const lastWateredSpan = document.getElementById(`last-watered-${treeId}`);
+                if (lastWateredSpan) lastWateredSpan.textContent = formatDate(new Date());
+                confirmText.textContent = 'Updated!';
+                if(sliderFill.parentElement) sliderFill.parentElement.classList.add('slider-success');
+                setTimeout(() => {
+                    marker.closePopup();
+                }, 1500);
+            } else {
+                confirmText.textContent = 'Error - Try Again';
+            }
+        }
+        // Always return to start unless update was successful or already reset
+        if (slider.value !== "0" && (!isUpdating || !success) ) {
+            slider.value = 0;
+            sliderFill.style.width = '0%';
+            confirmText.classList.remove('visible');
+            if (value <=90) confirmText.textContent = 'Release to confirm watering'; // Reset text if not dragged far enough
+        }
+        isUpdating = false;
+    });
+
+    // Reset slider when popup opens (or re-opens)
+    slider.value = 0;
+    sliderFill.style.width = '0%';
+    confirmText.classList.remove('visible');
+    confirmText.textContent = 'Release to confirm watering';
+    if(sliderFill.parentElement) sliderFill.parentElement.classList.remove('slider-success');
+}
+
 // Wait for map to be ready and fetch tree data
 map.whenReady(async () => {
   try {
@@ -449,6 +619,9 @@ map.whenReady(async () => {
     // Add water droplet markers before any trees
     addWaterDroplets(hoseLocations);
   
+    // Fetch watering recommendation before processing trees
+    await fetchWateringRecommendation(); 
+
     // Now add trees AFTER water droplets
     const treesSnapshot = await getDocs(collection(db, "trees"));
     
@@ -457,51 +630,48 @@ map.whenReady(async () => {
       const treeId = doc.id;
       const latlng = constrainToBounds([tree.mapCoordinates.y, tree.mapCoordinates.x]);
       
+      // ---- START MARKER COLOR LOGIC ----
+      let daysSinceWatered = 0;
+      if (tree.lastWateredDate) {
+          const now = new Date();
+          const lastWatered = tree.lastWateredDate.toDate();
+          daysSinceWatered = Math.floor((now - lastWatered) / (24 * 60 * 60 * 1000));
+      }
+
+      const baseTreeColor = '#43a047'; // Healthy green
+      let currentTreeFillColor = baseTreeColor;
+      const dontWaterColor = '#64b5f6'; // A bluish, well-watered color
+
+      if (currentWateringRecommendation === "Don't Water") {
+          currentTreeFillColor = dontWaterColor;
+      } else {
+          let thresholdDays = 7;
+          if (currentWateringRecommendation === "Optional") {
+              thresholdDays = 10;
+          }
+          // Darken color progressively up to the threshold
+          // If daysSinceWatered is 0, progress is 0. If daysSinceWatered is threshold or more, progress is 1.
+          const progress = Math.min(1, daysSinceWatered / thresholdDays);
+          currentTreeFillColor = getProgressiveColor(baseTreeColor, progress);
+      }
+      // ---- END MARKER COLOR LOGIC ----
+
       // Check if tree is in grove before creating popup content
       const myGrove = window.getMyGrove();
       const isInGrove = myGrove.includes(treeId);
       
-      const popupContent = document.createElement('div');
-      popupContent.innerHTML = `
-        <div class="popup-title">
-          <strong>${tree.commonName || 'Tree'}</strong><br/>
-          Scientific name: ${tree.botanicalName || '–'}<br/>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0;">
-          <div class="last-watered">Last watered: <span id="last-watered-${treeId}">${formatDate(tree.lastWateredDate)}</span></div>
-          <button 
-            class="popup-heart" 
-            id="grove-btn-${treeId}" 
-            onclick="toggleGroveTree('${treeId}', this)"
-            title="${isInGrove ? 'Remove from My Grove' : 'Add to My Grove'}">
-            <span class="material-icons" style="color: ${isInGrove ? '#e53935' : '#4CAF50'}; font-size: 20px;">
-              ${isInGrove ? 'favorite' : 'favorite_border'}
-            </span>
-          </button>
-        </div>
-        <div class="watering-slider-container">
-          <span class="slider-label">Slide to confirm watering</span>
-          <div class="slider-wrapper">
-            <div class="slider-fill" id="slider-fill-${treeId}"></div>
-            <input type="range" class="watering-slider" id="slider-${treeId}" 
-                   min="0" max="100" value="0">
-          </div>
-          <div class="confirmation-text" id="confirm-text-${treeId}">
-            Release to confirm watering
-          </div>
-        </div>
-      `;
+      const popupContentHTML = createPopupHTML(tree, treeId, isInGrove);
 
       const marker = L.circleMarker(latlng, {
         radius: 12,
         color: '#1b5e20',
         weight: 2,
-        fillColor: '#43a047',
+        fillColor: currentTreeFillColor,
         fillOpacity: 0.9,
         className: 'tree-dot',
         interactive: true
       })
-      .bindPopup(popupContent, {
+      .bindPopup(popupContentHTML, {
         autoPan: false,  // Disable automatic panning
         keepInView: false,  // Disable keep in view
         autoPanPadding: [50, 50]
@@ -537,63 +707,23 @@ map.whenReady(async () => {
 
       // Update icon if tree is in grove
       marker.on('popupopen', () => {
+        // Ensure heart icon is up-to-date when popup opens
         const btn = document.getElementById(`grove-btn-${treeId}`);
-        const icon = btn.querySelector('.material-icons');
-        const currentGrove = window.getMyGrove(); // Get fresh grove state
-        
-        if (currentGrove.includes(treeId)) {
-          icon.textContent = 'favorite';
-          icon.style.color = '#e53935';
-        } else {
-          icon.textContent = 'favorite_border';
-          icon.style.color = '#4CAF50';
-        }
-
-        const slider = document.getElementById(`slider-${treeId}`);
-        const sliderFill = document.getElementById(`slider-fill-${treeId}`);
-        const confirmText = document.getElementById(`confirm-text-${treeId}`);
-        let isUpdating = false;
-        let success = false;
-
-        slider.addEventListener('input', (e) => {
-          const value = parseInt(e.target.value);
-          sliderFill.style.width = `${value}%`;
-          confirmText.classList.toggle('visible', value > 90);
-        });
-
-        slider.addEventListener('change', async (e) => {
-          const value = parseInt(e.target.value);
-          if (value > 90 && !isUpdating) {
-            isUpdating = true;
-            confirmText.textContent = 'Updating...';
-            
-            success = await updateTreeWatering(treeId);
-            
-            if (success) {
-              const lastWateredSpan = document.getElementById(`last-watered-${treeId}`);
-              lastWateredSpan.textContent = formatDate(new Date());
-              confirmText.textContent = 'Updated!';
-              sliderFill.parentElement.classList.add('slider-success');
-              setTimeout(() => {
-                marker.closePopup();
-              }, 1500);
+        if (btn) {
+            const icon = btn.querySelector('.material-icons');
+            const currentGrove = window.getMyGrove(); // Get fresh grove state
+            if (currentGrove.includes(treeId)) {
+                icon.textContent = 'favorite';
+                icon.style.color = '#e53935';
+                btn.title = 'Remove from My Grove';
             } else {
-              confirmText.textContent = 'Error - Try Again';
+                icon.textContent = 'favorite_border';
+                icon.style.color = '#4CAF50';
+                btn.title = 'Add to My Grove';
             }
-          }
-          // Always return to start unless update was successful
-          if (!isUpdating || !success) {
-            slider.value = 0;
-            sliderFill.style.width = '0%';
-            confirmText.classList.remove('visible');
-          }
-          isUpdating = false;
-        });
-
-        // Reset slider when popup opens
-        slider.value = 0;
-        sliderFill.style.width = '0%';
-        confirmText.classList.remove('visible');
+        }
+        // Setup slider events for the currently open popup
+        setupWateringSliderEvents(treeId, marker);
       });
 
       // Add a small brown trunk dot underneath
@@ -750,6 +880,41 @@ function addWaterDroplets(locations) {
         }).addTo(map);
     });
 }
+
+// ---- START NEW CODE FOR MAP PAGE ----
+let currentWateringRecommendation = "Optional"; // Default value
+
+// Function to fetch the current watering recommendation from Firestore
+async function fetchWateringRecommendation() {
+    try {
+        const alertDocRef = doc(db, 'site_config', 'watering_alert');
+        const alertDoc = await getDoc(alertDocRef);
+        if (alertDoc.exists()) {
+            currentWateringRecommendation = alertDoc.data().status || "Optional";
+            console.log("Map page: Fetched watering recommendation:", currentWateringRecommendation);
+        } else {
+            console.warn("Map page: Watering alert document not found in Firestore, using default 'Optional'.");
+        }
+    } catch (error) {
+        console.error("Map page: Error fetching watering recommendation:", error);
+    }
+}
+
+// Helper function to darken a hex color
+// progress is a float between 0 (no change) and 1 (fully black)
+function getProgressiveColor(baseHex, progress) {
+    progress = Math.max(0, Math.min(1, progress)); // Clamp progress
+    let r = parseInt(baseHex.slice(1, 3), 16);
+    let g = parseInt(baseHex.slice(3, 5), 16);
+    let b = parseInt(baseHex.slice(5, 7), 16);
+
+    r = Math.floor(r * (1 - progress));
+    g = Math.floor(g * (1 - progress));
+    b = Math.floor(b * (1 - progress));
+
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).padStart(6, '0');
+}
+// ---- END NEW CODE FOR MAP PAGE ----
 </script>
 </body>
 </html>
