@@ -156,7 +156,7 @@ function isDataStale(timestamp) {
 // Function to fetch and parse Casey Trees alert
 async function fetchAndStoreCaseyTreesAlert() {
     
-    const response = await fetch('https://caseytrees.org/water/');
+    const response = await fetch('https://us-central1-community-tree-watering.cloudfunctions.net/caseyTreesProxy');
     
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
