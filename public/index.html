@@ -241,6 +241,60 @@
           font-size: 1.2rem;
           color: #2e7d32;
       }
+
+      #casey-trees-alert-status {
+        font-weight: bold;
+        font-size: 1.5em; /* Made status text larger */
+        color: #2e7d32;
+        padding: 10px;
+        background-color: #e8f5e9;
+        border-radius: 8px;
+        margin-bottom: 10px; /* Added margin below status */
+        text-align: center;
+      }
+
+      #casey-trees-alert-details {
+        font-size: 0.95em;
+        color: #333;
+        margin-bottom: 8px; /* Increased space before meta data */
+        text-align: center;
+      }
+
+      .alert-meta {
+        display: flex; /* Enables flexbox */
+        justify-content: center; /* Centers children horizontally */
+        align-items: center; /* Aligns children vertically */
+        font-size: 0.85em;
+        color: #555;
+        text-align: center;
+        flex-wrap: wrap; /* Allow wrapping on small screens */
+        gap: 5px; /* Adds a small gap between items if they wrap */
+      }
+
+      .alert-meta a {
+        color: #2e7d32; /* Link color to match theme */
+        text-decoration: underline;
+      }
+
+      .alert-meta .meta-separator {
+        margin: 0 5px; /* Space around the separator */
+        color: #888; /* Lighter color for separator */
+      }
+
+      #watering-recommendation {
+        padding: 20px;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        background-color: #ffffff;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+        margin-bottom: 25px;
+      }
+      
+      #watering-recommendation h2 {
+        margin-top: 0; /* Remove default top margin from h2 */
+        margin-bottom: 15px;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
@@ -265,6 +319,7 @@
       <h2 style="display: none;">Weekly Watering Alert</h2>
       <p id="casey-trees-alert-status" style="display: none;">Loading...</p>
       <p id="casey-trees-alert-details"></p>
+      <div id="alert-meta-data" class="alert-meta"></div>
     </div>
 
     <div class="map-button-container">

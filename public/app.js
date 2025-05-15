@@ -164,10 +164,10 @@ async function fetchAndStoreCaseyTreesAlert() {
     
     const html = await response.text();    
     const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
+    const parsedHtmlDoc = parser.parseFromString(html, 'text/html');
     
     // Try to find the watering alert status
-    const alertText = doc.querySelector('.watering-alert, .alert-status, [class*="watering"]')?.textContent || '';
+    const alertText = parsedHtmlDoc.querySelector('.watering-alert, .alert-status, [class*="watering"]')?.textContent || '';
     
     let status = null;
     let details = "";
@@ -183,7 +183,7 @@ async function fetchAndStoreCaseyTreesAlert() {
     
     // If we didn't find the status in the alert text, try the whole page
     if (!status) {
-        const fullText = doc.body.textContent;
+        const fullText = parsedHtmlDoc.body.textContent;
         const statusMatch = fullText.match(/Weekly Watering Alert\s*\|\s*(Must Water|Optional|Don't Water)/i);
         if (statusMatch) {
             status = statusMatch[1];
@@ -243,20 +243,16 @@ async function displayWateringAlert(alertData) {
     
     currentWateringRecommendation = alertData.status;
     
-    // Check if we're on a page with watering recommendation elements
     const wateringRecommendationDiv = document.getElementById('watering-recommendation');
     if (!wateringRecommendationDiv) {
-        // We're on a different page (like how-to-use), so just return
         return;
     }
     
-    // Hide loading animation
     const loadingContainer = wateringRecommendationDiv.querySelector('.loading-container');
     if (loadingContainer) {
         loadingContainer.classList.remove('active');
     }
     
-    // Show title and status
     const titleElement = wateringRecommendationDiv.querySelector('h2');
     if (titleElement) {
         titleElement.style.display = 'block';
@@ -268,32 +264,29 @@ async function displayWateringAlert(alertData) {
         statusElement.textContent = alertData.status;
     }
     
-    if (caseyTreesAlertDetails) {
-        let detailsText = alertData.details;
-        const caseyTreesPhrase = "Casey Trees";
-        const caseyTreesLinkHTML = '<a href="https://caseytrees.org/water/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline; cursor: pointer;">Casey Trees</a>';
+    const detailsElement = document.getElementById('casey-trees-alert-details');
+    const metaDataElement = document.getElementById('alert-meta-data');
 
-        // Replace "Casey Trees" with the styled link if present
-        if (detailsText && detailsText.includes(caseyTreesPhrase)) {
-            detailsText = detailsText.replace(new RegExp(caseyTreesPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), caseyTreesLinkHTML);
-            caseyTreesAlertDetails.innerHTML = detailsText;
-        } else {
-            caseyTreesAlertDetails.textContent = detailsText; // Fallback to textContent if no replacement
-        }
+    if (detailsElement) {
+        let effectiveDateText = "";
+        const dateRangeMatch = alertData.details?.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{1,2}\s*–\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{1,2},\s*\d{4})/i);
         
-        // Add last updated timestamp
-        const lastUpdateSpan = document.createElement('span');
-        lastUpdateSpan.className = 'last-updated';
+        if (dateRangeMatch && dateRangeMatch[1]) {
+            effectiveDateText = `Effective: ${dateRangeMatch[1]}`;
+        } else {
+            effectiveDateText = "Current Casey Trees Recommendation"; 
+        }
+        detailsElement.textContent = effectiveDateText;
+    }
+
+    if (metaDataElement) {
+        let metaHTML = 'Source: <a href="https://caseytrees.org/water/" target="_blank" rel="noopener noreferrer">Casey Trees</a>';
         const lastUpdated = alertData.lastUpdated?.toDate();
         if (lastUpdated) {
-             lastUpdateSpan.textContent = `Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString()}`;
-            
-            const existingTimestamp = caseyTreesAlertDetails.parentNode?.querySelector('.last-updated');
-            if (existingTimestamp) {
-                existingTimestamp.remove();
-            }
-            caseyTreesAlertDetails.parentNode?.insertBefore(lastUpdateSpan, caseyTreesAlertDetails.nextSibling);
+            metaHTML += ` <span class="meta-separator">|</span> Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
         }
+        metaDataElement.innerHTML = metaHTML;
+        // Styling is primarily handled by .alert-meta class in CSS
     }
 }
 
