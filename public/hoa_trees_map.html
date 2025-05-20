@@ -572,8 +572,54 @@ function setupWateringSliderEvents(treeId, marker) {
             success = await updateTreeWatering(treeId);
             
             if (success) {
+                // --- NEW: Update in-memory tree data ---
+                if (window.treeData && window.treeData[treeId]) {
+                    window.treeData[treeId].lastWateredDate = { toDate: () => new Date() };
+                }
+                // --- NEW: Recalculate marker color and update instantly ---
+                const tree = window.treeData[treeId];
+                let daysSinceWatered = 0;
+                if (tree.lastWateredDate) {
+                    const now = new Date();
+                    const lastWatered = tree.lastWateredDate.toDate();
+                    daysSinceWatered = Math.floor((now - lastWatered) / (24 * 60 * 60 * 1000));
+                }
+                const baseTreeColor = '#43a047';
+                let currentTreeFillColor = baseTreeColor;
+                const dontWaterColor = '#64b5f6';
+                if (window.currentWateringRecommendation === "Don't Water") {
+                    currentTreeFillColor = dontWaterColor;
+                } else {
+                    let thresholdDays = 7;
+                    if (window.currentWateringRecommendation === "Optional") {
+                        thresholdDays = 10;
+                    }
+                    const progress = Math.min(1, daysSinceWatered / thresholdDays);
+                    currentTreeFillColor = getProgressiveColor(baseTreeColor, progress);
+                }
+                if (marker && marker.setStyle) {
+                    marker.setStyle({ fillColor: currentTreeFillColor });
+                }
+                // --- NEW: Update popup status message and last watered date instantly ---
                 const lastWateredSpan = document.getElementById(`last-watered-${treeId}`);
                 if (lastWateredSpan) lastWateredSpan.textContent = formatDate(new Date());
+                // Update status message (thirsty/water soon/etc)
+                const statusMsg = document.querySelector('.popup-status-message');
+                if (statusMsg) {
+                    // Recalculate status
+                    const { calculateTreeWateringStatus, TREE_WATERING_STATUSES } = await import('./treeUtils.js');
+                    const status = calculateTreeWateringStatus(tree, 'lastWateredDate', window.currentWateringRecommendation);
+                    if (status === TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION || status === TREE_WATERING_STATUSES.THIRSTY) {
+                        statusMsg.textContent = 'Water ASAP!';
+                        statusMsg.className = 'popup-status-message thirsty';
+                    } else if (status === TREE_WATERING_STATUSES.WATER_SOON) {
+                        statusMsg.textContent = 'Water Soon';
+                        statusMsg.className = 'popup-status-message water-soon';
+                    } else {
+                        statusMsg.textContent = '';
+                        statusMsg.className = 'popup-status-message';
+                    }
+                }
                 confirmText.textContent = 'Updated!';
                 if(sliderFill.parentElement) sliderFill.parentElement.classList.add('slider-success');
                 setTimeout(() => {
@@ -622,6 +668,9 @@ map.whenReady(async () => {
     // Fetch watering recommendation before processing trees
     await fetchWateringRecommendation(); 
 
+    // --- NEW: Store all tree data globally ---
+    window.treeData = window.treeData || {};
+
     // Now add trees AFTER water droplets
     const treesSnapshot = await getDocs(collection(db, "trees"));
     
@@ -656,6 +705,9 @@ map.whenReady(async () => {
       }
       // ---- END MARKER COLOR LOGIC ----
 
+      // --- NEW: Store tree data globally ---
+      window.treeData[treeId] = tree;
+      
       // Check if tree is in grove before creating popup content
       const myGrove = window.getMyGrove();
       const isInGrove = myGrove.includes(treeId);
@@ -722,7 +774,24 @@ map.whenReady(async () => {
                 btn.title = 'Add to My Grove';
             }
         }
+
+        // --- NEW: Refresh popup content with latest data ---
+        const currentTreeData = window.treeData[treeId];
+        if (currentTreeData) {
+            const myGrove = window.getMyGrove();
+            const isInGrove = myGrove.includes(treeId);
+            const newPopupContentHTML = createPopupHTML(currentTreeData, treeId, isInGrove);
+            // Check if the marker still exists and has the setPopupContent method
+            if (marker && typeof marker.setPopupContent === 'function') {
+                 marker.setPopupContent(newPopupContentHTML);
+            } else {
+                console.warn("Marker or setPopupContent not available for tree:", treeId);
+            }
+        }
+        // --- END NEW --- 
+        
         // Setup slider events for the currently open popup
+        // This needs to be called AFTER setPopupContent, as setPopupContent might recreate the DOM elements
         setupWateringSliderEvents(treeId, marker);
       });
 
