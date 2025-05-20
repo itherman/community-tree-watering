@@ -268,14 +268,7 @@ async function displayWateringAlert(alertData) {
     const metaDataElement = document.getElementById('alert-meta-data');
 
     if (detailsElement) {
-        let effectiveDateText = "";
-        const dateRangeMatch = alertData.details?.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{1,2}\s*–\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{1,2},\s*\d{4})/i);
-        
-        if (dateRangeMatch && dateRangeMatch[1]) {
-            effectiveDateText = `Effective: ${dateRangeMatch[1]}`;
-        } else {
-            effectiveDateText = "Current Casey Trees Recommendation"; 
-        }
+        const effectiveDateText = `Effective: ${getCurrentWeekDateRange()}`;
         detailsElement.textContent = effectiveDateText;
     }
 
@@ -658,4 +651,19 @@ async function batchImportTreesFromConsole(treeDataArray) {
     console.log(`Successfully imported: ${successfulImports} trees.`);
     console.log(`Failed to import: ${failedImports} trees.`);
 }
-window.batchImportTreesFromConsole = batchImportTreesFromConsole; 
+window.batchImportTreesFromConsole = batchImportTreesFromConsole;
+
+function getCurrentWeekDateRange() {
+    const today = new Date();
+    // Set to Monday (0 = Sunday, 1 = Monday, ...)
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    // Format as "May 13 – May 19, 2024"
+    const options = { month: 'short', day: 'numeric' };
+    const year = sunday.getFullYear();
+    return `${monday.toLocaleDateString(undefined, options)} – ${sunday.toLocaleDateString(undefined, options)}, ${year}`;
+} 

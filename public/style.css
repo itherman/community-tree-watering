@@ -1005,6 +1005,21 @@ footer .material-icons {
     background-color: rgba(46, 125, 50, 0.03); /* Light green tint */
     border-radius: 12px;
     padding: 15px 20px; /* Adjusted padding slightly */
-    margin-top: 40px; /* This was previously on #tree-list h2 */
+    margin-top: 0;      /* Remove any top margin */
     margin-bottom: 20px; /* Space before the ul */
+    padding-top: 0;     /* Remove any top padding */
+}
+
+.list-section-header h2 {
+    margin-top: 0;      /* Remove any top margin from the heading */
+    padding-top: 0;     /* Remove any top padding from the heading */
+}
+
+.list-section-header:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+.list-section-header h2 {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
 } 
