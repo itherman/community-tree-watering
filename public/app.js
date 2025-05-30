@@ -10,9 +10,9 @@ import { calculateTreeWateringStatus, TREE_WATERING_STATUSES } from './treeUtils
 
 // App version information
 const APP_VERSION = {
-    number: '1.1.0',
+    number: '1.1.2',
     name: 'Grove Guardian',
-    lastUpdated: '2025-05-20'
+    lastUpdated: '2025-05-30'
 };
 window.APP_VERSION = APP_VERSION; // Make available globally
 
