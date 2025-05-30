@@ -376,6 +376,18 @@ async function displayWateringAlert(alertData) {
     if (statusElement) {
         statusElement.style.display = 'block';
         statusElement.textContent = alertData.status;
+
+        // Remove existing status classes
+        statusElement.classList.remove('status-must-water', 'status-optional', 'status-dont-water');
+
+        // Add new class based on status
+        if (alertData.status === "Must Water") {
+            statusElement.classList.add('status-must-water');
+        } else if (alertData.status === "Optional") {
+            statusElement.classList.add('status-optional');
+        } else if (alertData.status === "Don't Water") {
+            statusElement.classList.add('status-dont-water');
+        }
     }
     
     const detailsElement = document.getElementById('casey-trees-alert-details');

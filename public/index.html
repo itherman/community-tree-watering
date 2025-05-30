@@ -298,13 +298,30 @@
       #casey-trees-alert-status {
         font-weight: bold;
         font-size: 1.5em; /* Made status text larger */
-        color: #2e7d32;
+        /* color: #2e7d32; */ /* Color will be set by new classes */
         padding: 10px;
-        background-color: #e8f5e9;
+        /* background-color: #e8f5e9; */ /* Background will be set by new classes */
         border-radius: 8px;
         margin-bottom: 10px; /* Added margin below status */
         text-align: center;
-        border: 1px solid #d8e8d9;
+        border: 1px solid #d8e8d9; /* Default border, can be overridden by status class */
+      }
+
+      /* New status-specific styles for the main alert */
+      #casey-trees-alert-status.status-must-water {
+        background-color: #ffebee; /* Lightest red */
+        color: #c62828; /* Dark red text */
+        border: 1px solid #ef9a9a; /* Softer red border */
+      }
+      #casey-trees-alert-status.status-optional {
+        background-color: #fffde7; /* Lightest yellow */
+        color: #f57f17; /* Dark yellow/amber text */
+        border: 1px solid #fff59d; /* Softer yellow border */
+      }
+      #casey-trees-alert-status.status-dont-water {
+        background-color: #e8f5e9; /* Lightest green */
+        color: #2e7d32; /* Dark green text */
+        border: 1px solid #a5d6a7; /* Softer green border */
       }
 
       #casey-trees-alert-details {
