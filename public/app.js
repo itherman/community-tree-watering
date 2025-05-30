@@ -90,264 +90,52 @@ const anonCreateUser = async () => {
     }
 };
 
-// Function to get watering alert with timeout
+// REVISED Function to get and display watering alert using shared logic
 async function getAndUpdateWateringAlert() {
-    // Ensure loading animation is visible until final decision
     const wateringRecommendationDiv = document.getElementById('watering-recommendation');
     const loadingContainer = wateringRecommendationDiv ? wateringRecommendationDiv.querySelector('.loading-container') : null;
-    if (loadingContainer && !loadingContainer.classList.contains('active')) {
-        // This is a failsafe; usually it's set active in HTML or by other logic.
-        // We might want to ensure it becomes active here if not already.
-    }
-
-    let finalAlertDataToDisplay = null;
-    let alertSourceForLogging = 'init';
-    let forecastContext = null; // Initialize forecastContext
+    // Ensure loading animation might need to be managed if active states are handled outside
 
     try {
-        if (!db) {
-            throw new Error('Firestore database not initialized!');
+        if (!db || !Timestamp || !doc || !getDoc || !setDoc) {
+            throw new Error('Firestore SDK components not available for shared logic!');
         }
 
-        const mainAlertDocRef = doc(db, 'site_config', 'watering_alert');
-        const weatherRecDocRef = doc(db, 'site_config', 'daily_weather_recommendation');
+        console.log("App.js: Calling shared determineOverallWateringStatus...");
+        // Call the shared function to get the determined status and context
+        // The shared function now handles updating 'site_config/watering_alert' itself.
+        const { finalAlertDataToDisplay, forecastContext } = await determineOverallWateringStatus(db, Timestamp, doc, getDoc, setDoc);
+        console.log("App.js: Shared logic returned status:", finalAlertDataToDisplay.status);
 
-        const [mainAlertSnap, weatherRecSnap] = await Promise.all([
-            getDoc(mainAlertDocRef),
-            getDoc(weatherRecDocRef)
-        ]);
-
-        // --- Start Decision Logic ---
-
-        // Priority 1: Admin Override
-        if (mainAlertSnap.exists()) {
-            const mainAlert = mainAlertSnap.data();
-            if (mainAlert.source === 'admin_override' && mainAlert.overrideUntil && mainAlert.overrideUntil.toDate() > new Date()) {
-                finalAlertDataToDisplay = mainAlert;
-                alertSourceForLogging = 'admin_override';
-            }
-        }
-
-        // Priority 2: Casey Trees "Don't Water" (if no active admin override)
-        if (!finalAlertDataToDisplay && mainAlertSnap.exists()) {
-            const mainAlert = mainAlertSnap.data();
-            const isCaseyTreesSource = mainAlert.source === 'https://caseytrees.org/water/' || mainAlert.source === 'default';
-            if (isCaseyTreesSource && mainAlert.status === "Don't Water" && !isDataStale(mainAlert.lastUpdated)) {
-                finalAlertDataToDisplay = mainAlert;
-                alertSourceForLogging = 'casey_trees_recent_dont_water';
-            }
-        }
-
-        // Priority 3: Daily Weather Recommendation (if no decision yet)
-        if (!finalAlertDataToDisplay && weatherRecSnap.exists()) {
-            const wrData = weatherRecSnap.data();
-            const weatherLastUpdated = wrData.lastUpdated ? wrData.lastUpdated.toDate() : null;
-            if (weatherLastUpdated) {
-                const hoursSinceUpdate = (new Date() - weatherLastUpdated) / (1000 * 60 * 60);
-                if (hoursSinceUpdate <= 30) { // Fresh if updated in last 30 hours
-                    finalAlertDataToDisplay = wrData;
-                    alertSourceForLogging = 'weather_function';
-                    // EXTRACT FORECAST CONTEXT for tree list logic
-                    if (wrData.processedWeatherData) {
-                        forecastContext = {}; // Initialize as an object
-                        if (typeof wrData.processedWeatherData.forecast3DaysRainMM === 'number') {
-                            forecastContext.rainInNext3DaysInches = wrData.processedWeatherData.forecast3DaysRainMM / 25.4;
-                        }
-                        if (typeof wrData.processedWeatherData.past2DaysRainMM === 'number') {
-                            forecastContext.rainInLast2DaysInches = wrData.processedWeatherData.past2DaysRainMM / 25.4;
-                        }
-                    }
-                } else {
-                    console.log('Info: Daily weather recommendation is stale (', hoursSinceUpdate.toFixed(1), 'hours old).');
-                }
-            }
-        }
-
-        // Priority 4: Fallback to Casey Trees (scrape or use existing if not decided)
-        if (!finalAlertDataToDisplay) {
-            console.log('Info: No overriding status determined yet. Evaluating Casey Trees status/scrape.');
-            let shouldFetchFromCaseyTrees = false;
-
-            if (mainAlertSnap.exists()) {
-                const mainAlert = mainAlertSnap.data();
-                if (mainAlert.source === 'automation_requested') {
-                    shouldFetchFromCaseyTrees = true;
-                    alertSourceForLogging = 'casey_trees_automation_request';
-                } else if (mainAlert.source === 'admin_override' && mainAlert.overrideUntil && mainAlert.overrideUntil.toDate() <= new Date()) { // Expired admin override
-                    shouldFetchFromCaseyTrees = true;
-                    alertSourceForLogging = 'casey_trees_expired_admin_override';
-                } else if (isDataStale(mainAlert.lastUpdated)) {
-                    shouldFetchFromCaseyTrees = true;
-                    alertSourceForLogging = 'casey_trees_stale_data';
-                } else {
-                    finalAlertDataToDisplay = mainAlert;
-                    alertSourceForLogging = 'existing_fresh_casey_trees_non_dont_water';
-                }
-            } else { // No main watering_alert doc at all
-                shouldFetchFromCaseyTrees = true;
-                alertSourceForLogging = 'casey_trees_no_prior_data';
-            }
-
-            if (shouldFetchFromCaseyTrees) {
-                console.log(`Action: Proceeding to fetch from Casey Trees. Reason: ${alertSourceForLogging}`);
-                try {
-                    // fetchAndStoreCaseyTreesAlert will update mainAlertDocRef and return the alert data.
-                    // It no longer calls displayWateringAlert internally.
-                    finalAlertDataToDisplay = await fetchAndStoreCaseyTreesAlert();
-                    // Ensure source is correctly attributed if fetch was successful
-                    alertSourceForLogging = finalAlertDataToDisplay.source || 'casey_trees_fetched'; 
-                } catch (fetchError) {
-                    console.error("Error fetching from Casey Trees:", fetchError);
-                    finalAlertDataToDisplay = {
-                        status: "Optional",
-                        details: "Unable to fetch latest watering status. Please check trees manually.",
-                        lastUpdated: Timestamp.now(),
-                        source: 'fetch_error_default_final'
-                    };
-                    alertSourceForLogging = 'fetch_error_default_final';
-                }
-            }
-        }
-
-        // --- End Decision Logic ---
-
-        // Final Display (if not handled by fetchAndStoreCaseyTreesAlert)
         if (finalAlertDataToDisplay) {
             await displayWateringAlert(finalAlertDataToDisplay);
         } else {
-            // Ultimate fallback if absolutely no data could be determined and fetch wasn't attempted or failed to set finalAlertDataToDisplay
-            console.log('CRITICAL FALLBACK: No watering status could be determined by any means. Displaying failsafe default.');
-            finalAlertDataToDisplay = {
+            // This case should ideally be handled within determineOverallWateringStatus with a failsafe default
+            console.error("App.js: CRITICAL - determineOverallWateringStatus did not return data. Displaying fallback.");
+            await displayWateringAlert({
                 status: "Optional",
-                details: "Watering status could not be determined. Check trees manually.",
-                lastUpdated: Timestamp.now(),
-                source: 'failsafe_default_final'
-            };
-            await displayWateringAlert(finalAlertDataToDisplay);
+                details: "Watering status determination failed. Check trees manually.",
+                lastUpdated: Timestamp.now(), // Firestore Timestamp needed here
+                source: 'critical_shared_logic_failure'
+            });
         }
+        
+        // Load trees with the context from the shared logic
+        await loadTrees(forecastContext);
 
     } catch (error) {
-        console.error("Critical error in getAndUpdateWateringAlert wrapper:", error);
-        // Ensure loading animation is hidden even on critical error before displaying final fallback
+        console.error("Critical error in getAndUpdateWateringAlert (app.js using shared logic):", error);
         if (loadingContainer) loadingContainer.classList.remove('active');
         const titleElement = wateringRecommendationDiv ? wateringRecommendationDiv.querySelector('h2') : null;
-        if (titleElement) titleElement.style.display = 'block'; // Ensure title is visible for error message
+        if (titleElement) titleElement.style.display = 'block';
 
         await displayWateringAlert({
             status: "Optional",
             details: "System error encountered. Please check trees for watering needs.",
-            lastUpdated: Timestamp.now(),
-            source: 'critical_error_default'
+            lastUpdated: Timestamp.now(), // Firestore Timestamp needed here
+            source: 'critical_error_app_js'
         });
-    }
-    // After the main alert is decided and potentially displayed, load trees with context
-    // currentWateringRecommendation is set globally by displayWateringAlert
-    // We need to ensure loadTrees is called *after* the display logic that sets currentWateringRecommendation
-    // or pass currentWateringRecommendation explicitly if displayWateringAlert isn't called (e.g. fetch path)
-    // For simplicity, assuming displayWateringAlert has set currentWateringRecommendation globally.
-    // However, fetchAndStoreCaseyTreesAlert also sets it. This should be okay.
-    // If finalAlertDataToDisplay was set, currentWateringRecommendation is from it.
-    // If fetchAndStoreCaseyTreesAlert was called, it set currentWateringRecommendation.
-
-    // Ensure loadTrees is called AFTER the alert display logic has potentially run.
-    // The global currentWateringRecommendation will be set by displayWateringAlert.
-    // If fetchAndStoreCaseyTreesAlert was called, it also sets currentWateringRecommendation before returning.
-    await loadTrees(forecastContext); // Pass forecastContext to loadTrees
-}
-
-// Helper function to check if data is stale (older than 24 hours)
-function isDataStale(timestamp) {
-    if (!timestamp) return true;
-    
-    const lastUpdated = timestamp.toDate();
-    const oneDayAgo = new Date();
-    oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-    
-    return lastUpdated < oneDayAgo;
-}
-
-// Function to fetch and parse Casey Trees alert
-async function fetchAndStoreCaseyTreesAlert() {
-    
-    const response = await fetch('https://us-central1-community-tree-watering.cloudfunctions.net/caseyTreesProxy');
-    
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const html = await response.text();    
-    const parser = new DOMParser();
-    const parsedHtmlDoc = parser.parseFromString(html, 'text/html');
-    
-    // Try to find the watering alert status
-    const alertText = parsedHtmlDoc.querySelector('.watering-alert, .alert-status, [class*="watering"]')?.textContent || '';
-    
-    let status = null;
-    let details = "";
-    
-    // Look for the status in the alert text
-    if (alertText.toLowerCase().includes('must water')) {
-        status = 'Must Water';
-    } else if (alertText.toLowerCase().includes('optional')) {
-        status = 'Optional';
-    } else if (alertText.toLowerCase().includes("don't water") || alertText.toLowerCase().includes('do not water')) {
-        status = "Don't Water";
-    }
-    
-    // If we didn't find the status in the alert text, try the whole page
-    if (!status) {
-        const fullText = parsedHtmlDoc.body.textContent;
-        const statusMatch = fullText.match(/Weekly Watering Alert\s*\|\s*(Must Water|Optional|Don't Water)/i);
-        if (statusMatch) {
-            status = statusMatch[1];
-            // Try to get the details from the following text
-            const afterStatus = fullText.substring(fullText.indexOf(statusMatch[0]) + statusMatch[0].length);
-            const nextPeriod = afterStatus.indexOf('.');
-            if (nextPeriod > 0) {
-                details = afterStatus.substring(0, nextPeriod).trim();
-            }
-        }
-    }
-    
-    if (!status) {
-        throw new Error("Could not find watering status on Casey Trees website");
-    }
-    
-    // If we don't have details, get them from the default text
-    if (!details) {
-        details = getDefaultDetails(status);
-    }
-    
-    const alertData = {
-        status,
-        details,
-        lastUpdated: Timestamp.now(),
-        source: 'https://caseytrees.org/water/'
-    };
-    
-    
-    try {
-        const alertDocRef = doc(db, 'site_config', 'watering_alert');
-        await setDoc(alertDocRef, alertData); // Store in Firestore
-        // await displayWateringAlert(alertData); // DO NOT call displayWateringAlert here
-        return alertData; // Return the data so getAndUpdateWateringAlert can handle display
-    } catch (error) {
-        console.error("Error storing in Firestore:", error);
-        throw error;
-    }
-}
-
-// Helper function to get default details based on status
-function getDefaultDetails(status) {
-    switch (status) {
-        case "Must Water":
-            return "Very little observed or forecasted rainfall this week. Young trees must be watered.";
-        case "Optional":
-            return "Trees may need water, depending on the forecast. Check trees for signs (wilting leaves and/or dry soil) and water as needed.";
-        case "Don't Water":
-            return "Recent or predicted rainfall exceeding 1.5 inches this week. Trees have enough water.";
-        default:
-            return "Check trees for signs of needing water and water as needed.";
+        await loadTrees(null); // Load trees with no specific forecast context on error
     }
 }
 

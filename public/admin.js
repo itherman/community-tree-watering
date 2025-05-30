@@ -1,7 +1,7 @@
 // Import Firebase services from firebase-init.js (make sure this path is correct)
 import { auth, db } from './firebase-init.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-auth.js';
-import { doc, getDoc, setDoc, Timestamp, serverTimestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+import { doc, getDoc, setDoc, Timestamp, serverTimestamp, updateDoc, deleteField, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
 
 // DOM Elements
 const authContainer = document.getElementById('auth-container');
@@ -54,12 +54,14 @@ signOutButton.addEventListener('click', async () => {
     }
 });
 
+let unsubscribeWateringStatus = null; // To store the unsubscribe function
+
 onAuthStateChanged(auth, (user) => {
     if (user && !user.isAnonymous) {
         authContainer.classList.add('hidden');
         adminControls.classList.remove('hidden');
         userEmailDisplay.textContent = user.email;
-        loadCurrentWateringStatus();
+        subscribeToWateringStatus();
     } else {
         authContainer.classList.remove('hidden');
         adminControls.classList.add('hidden');
@@ -68,20 +70,31 @@ onAuthStateChanged(auth, (user) => {
             signOut(auth).catch(err => console.warn("Error signing out anonymous user on admin page:", err));
         }
         clearAdminMessage();
+        if (unsubscribeWateringStatus) {
+            unsubscribeWateringStatus();
+            unsubscribeWateringStatus = null;
+        }
     }
 });
 
 // --- Watering Status Management ---
-async function loadCurrentWateringStatus() {
-    try {
-        const docSnap = await getDoc(siteConfigRef);
+function subscribeToWateringStatus() {
+    if (unsubscribeWateringStatus) {
+        unsubscribeWateringStatus();
+    }
+    unsubscribeWateringStatus = onSnapshot(siteConfigRef, (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             currentStatusText.textContent = data.status || 'N/A';
             currentDetailsText.textContent = data.details || 'N/A';
             currentSourceText.textContent = data.source || 'N/A';
             currentLastUpdatedText.textContent = data.lastUpdated ? data.lastUpdated.toDate().toLocaleString() : 'N/A';
-            currentOverrideUntilText.textContent = data.overrideUntil ? data.overrideUntil.toDate().toLocaleString() : 'N/A';
+            
+            if (data.overrideUntil && typeof data.overrideUntil.toDate === 'function') {
+                currentOverrideUntilText.textContent = data.overrideUntil.toDate().toLocaleString();
+            } else {
+                currentOverrideUntilText.textContent = 'N/A';
+            }
         } else {
             currentStatusText.textContent = 'Not found';
             currentDetailsText.textContent = 'N/A';
@@ -89,11 +102,11 @@ async function loadCurrentWateringStatus() {
             currentLastUpdatedText.textContent = 'N/A';
             currentOverrideUntilText.textContent = 'N/A';
         }
-    } catch (error) {
-        console.error("Error loading current status:", error);
-        currentStatusText.textContent = 'Error loading';
-        displayAdminMessage(`Error loading status: ${error.message}`, true);
-    }
+    }, (error) => {
+        console.error("Error subscribing to watering status:", error);
+        currentStatusText.textContent = 'Error loading realtime';
+        displayAdminMessage(`Error listening to status: ${error.message}`, true);
+    });
 }
 
 setManualStatusButton.addEventListener('click', async () => {
@@ -106,8 +119,6 @@ setManualStatusButton.addEventListener('click', async () => {
         return;
     }
 
-    // Calculate overrideUntil: End of the selected day (e.g., Monday 6 PM)
-    // For simplicity here, we'll set it to X days from now at 6 PM.
     const now = new Date();
     const overrideEndDate = new Date(now);
     overrideEndDate.setDate(now.getDate() + durationDays);
@@ -124,7 +135,6 @@ setManualStatusButton.addEventListener('click', async () => {
             overrideUntil: overrideUntilTimestamp
         }, { merge: true }); // Merge to not overwrite other potential fields in site_config
         displayAdminMessage(`Manual status set to "${status}". Will be effective until ${overrideEndDate.toLocaleString()}.`, false);
-        await loadCurrentWateringStatus(); // Refresh display
         manualDetailsInput.value = ''; // Clear input
     } catch (error) {
         console.error("Error setting manual status:", error);
@@ -134,32 +144,29 @@ setManualStatusButton.addEventListener('click', async () => {
 
 revertToAutoButton.addEventListener('click', async () => {
     try {
-        // To revert, we can remove 'overrideUntil' and 'source',
-        // or set source to something that indicates it should fetch.
-        // Let's remove overrideUntil and set source to 'default_after_override'.
-        // The main app.js will then know to treat it as needing a fresh scrape if stale.
+        // Step 1: Set initial pending status for immediate UI feedback via onSnapshot
         await updateDoc(siteConfigRef, {
-            source: 'automation_requested', // Or 'default_after_override'
-            overrideUntil: null // Firestore can't store null directly, use deleteField if needed, but null might be fine for logic check
-            // Alternatively, to truly remove the field:
-            // overrideUntil: firebase.firestore.FieldValue.delete() - requires full SDK or specific import
+            status: 'Pending Automated Update',
+            details: 'The system is fetching the latest status from the automated source.',
+            source: 'automation_requested', // This signals the system (and shared logic) to re-evaluate
+            overrideUntil: deleteField(), 
+            lastUpdated: serverTimestamp()
         });
-        // A simpler way that works with modular SDK without needing deleteField directly:
-        const currentData = (await getDoc(siteConfigRef)).data() || {};
-        delete currentData.overrideUntil; // Remove the key from the object
-        currentData.source = 'automation_requested';
-        currentData.lastUpdated = serverTimestamp(); // Update timestamp
-        await setDoc(siteConfigRef, currentData);
+        displayAdminMessage("Reverted: System is now determining final status...", false);
 
+        // Step 2: Call the shared logic to determine and set the final status.
+        // The shared function will handle all fetching, priority logic, and the final setDoc to watering_alert.
+        // The onSnapshot listener in this file (admin.js) will then pick up that final update.
+        console.log("Admin: Calling shared determineOverallWateringStatus...");
+        // We pass the necessary Firebase SDK components to the shared function.
+        await determineOverallWateringStatus(db, Timestamp, doc, getDoc, setDoc);
+        console.log("Admin: Shared determineOverallWateringStatus finished. Listener should reflect final state.");
 
-        displayAdminMessage("Reverted to Casey Trees automation. System will fetch new data if current is stale.", false);
-        await loadCurrentWateringStatus();
     } catch (error) {
-        console.error("Error reverting to auto:", error);
+        console.error("Error in revertToAutoButton process:", error);
         displayAdminMessage(`Error reverting: ${error.message}`, true);
     }
 });
-
 
 function displayAdminMessage(message, isError = false) {
     adminMessage.textContent = message;
