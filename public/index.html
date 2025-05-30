@@ -206,6 +206,59 @@
           gap: 6px;
       }
 
+      /* Tree Status Message Styling Updates */
+      .tree-status-message {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: normal;
+        display: inline-block;
+        margin-top: 4px;
+      }
+
+      /* Thirsty Status */
+      .tree-status-message.thirsty,
+      .tree-status-message.thirsty-rain-expected {
+        background-color: #fef6f6;
+        color: #9c2020;
+        border: 1px solid #f8cccc;
+      }
+
+      /* Water Soon Status */
+      .tree-status-message.water-soon,
+      .tree-status-message.water-soon-rain-expected {
+        background-color: #fffaf2;
+        color: #a15300;
+        border: 1px solid #ffe4c0;
+      }
+      
+      /* Okay Rain Expected Status */
+      .tree-status-message.okay-rain-expected {
+        background-color: #f4f8fd;
+        color: #0b3c7a;
+        border: 1px solid #d0e0f0;
+      }
+
+      /* Okay Status (for general consistency, if used) */
+      .tree-status-message.okay {
+        background-color: #f6fbf6;
+        color: #285c2c;
+        border: 1px solid #d8e8d9;
+      }
+
+      /* Don't Water Status (for general consistency, if used) */
+      .tree-status-message.dont-water {
+        background-color: #f5f5f5; /* Light grey background */
+        color: #424242; /* Dark grey text */
+      }
+      
+      /* Unknown Status */
+      .tree-status-message.unknown {
+        background-color: #eee;
+        color: #333;
+      }
+      /* End Tree Status Message Styling Updates */
+
       footer {
           background: linear-gradient(to right, rgba(46, 125, 50, 0.1), rgba(46, 125, 50, 0.05));
           padding: 1rem;
@@ -251,6 +304,7 @@
         border-radius: 8px;
         margin-bottom: 10px; /* Added margin below status */
         text-align: center;
+        border: 1px solid #d8e8d9;
       }
 
       #casey-trees-alert-details {
@@ -291,10 +345,25 @@
       }
       
       #watering-recommendation h2 {
-        margin-top: 0; /* Remove default top margin from h2 */
+        margin-top: 0;
         margin-bottom: 15px;
         text-align: center;
       }
+
+      /* Alert item styling for tree list items based on status */
+      .tree-item.thirsty-alert {
+          background-color: #fff0f0;
+          border-left: 4px solid #e57373;
+      }
+      .tree-item.water-soon-alert {
+          background-color: #fff8e1;
+          border-left: 4px solid #ffb74d;
+      }
+      .tree-item.okay-rain-expected-alert {
+          background-color: #eef6fc;
+          border-left: 4px solid #64b5f6;
+      }
+      /* End Alert item styling */
     </style>
   </head>
   <body>
@@ -353,6 +422,13 @@
         <div class="version-info" id="version-info"></div>
       </div>
     </footer>
+
+    <!-- Load local Firebase config (if it exists). This MUST be before firebase-init.js -->
+    <!-- In a deployed environment, this file won't exist (should be in .gitignore), leading to a 404 for this script, which is fine. -->
+    <script src="firebase-config.local.js"></script>
+
+    <!-- Initialize Firebase and your app's Firebase services -->
+    <script type="module" src="firebase-init.js"></script>
 
     <script type="module" src="app.js"></script>
     <script>

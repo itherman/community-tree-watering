@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grove Guardian - Admin</title>
+    <link rel="stylesheet" href="style.css"> <!-- You might want a separate admin.css or reuse style.css -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h1, h2 {
+            color: #2e7d32;
+            text-align: center;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+        input[type="email"], input[type="password"], input[type="text"], select {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #2e7d32;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #1b5e20;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover {
+            background-color: #5a6268;
+        }
+        .auth-container, .admin-controls {
+            margin-top: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        #current-status-display {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            border-radius: 4px;
+        }
+        #current-status-display p {
+            margin: 5px 0;
+        }
+        .error-message {
+            color: red;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .user-info {
+            text-align: right;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            color: #555;
+        }
+    </style>
+</head>
+<!-- Load local Firebase config (if it exists) before any module scripts that might use it. -->
+<!-- In a deployed environment, this file won't exist (should be in .gitignore), leading to a 404 for this script, which is fine. -->
+<script src="firebase-config.local.js"></script>
+<body>
+    <div class="container">
+        <h1>Grove Guardian - Admin</h1>
+
+        <div id="auth-container">
+            <h2>Admin Sign-In</h2>
+            <label for="email">Email:</label>
+            <input type="email" id="email" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" required>
+            <button id="signInButton">Sign In</button>
+            <p id="auth-error" class="error-message hidden"></p>
+        </div>
+
+        <div id="admin-controls" class="hidden">
+            <div class="user-info">
+                Logged in as: <span id="user-email-display"></span>
+                <button id="signOutButton" class="secondary" style="margin-left: 10px; padding: 5px 10px; font-size: 0.8em;">Sign Out</button>
+            </div>
+
+            <h2>Manual Watering Status Control</h2>
+
+            <div id="current-status-display">
+                <h3>Current Global Status:</h3>
+                <p><strong>Status:</strong> <span id="current-status-text">Loading...</span></p>
+                <p><strong>Details:</strong> <span id="current-details-text">Loading...</span></p>
+                <p><strong>Source:</strong> <span id="current-source-text">Loading...</span></p>
+                <p><strong>Last Updated:</strong> <span id="current-last-updated-text">Loading...</span></p>
+                <p><strong>Override Until:</strong> <span id="current-override-until-text">N/A</span></p>
+            </div>
+
+            <label for="manualStatus">Set Manual Status:</label>
+            <select id="manualStatus">
+                <option value="Must Water">Must Water</option>
+                <option value="Optional">Optional</option>
+                <option value="Don't Water">Don't Water</option>
+            </select>
+
+            <label for="manualDetails">Details (Optional):</label>
+            <input type="text" id="manualDetails" placeholder="e.g., Casey Trees site down">
+
+            <label for="overrideDuration">Override Duration (in days from now):</label>
+            <input type="number" id="overrideDuration" value="7" min="1" max="30">
+            <p style="font-size: 0.8em; color: #555;">The override will expire on the chosen day at 6:00 PM.</p>
+
+
+            <button id="setManualStatusButton">Set Manual Status</button>
+            <button id="revertToAutoButton" class="secondary">Revert to Casey Trees Automation</button>
+            <p id="admin-message" class="error-message hidden" style="color: green;"></p>
+        </div>
+    </div>
+
+    <script type="module" src="firebase-init.js"></script> <!-- Ensure this is available -->
+    <script type="module" src="admin.js"></script>
+</body>
+</html> 

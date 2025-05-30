@@ -9,10 +9,13 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
 </head>
+<!-- Load local Firebase config (if it exists) before any module scripts that might use it. -->
+<!-- In a deployed environment, this file won't exist (should be in .gitignore), leading to a 404 for this script, which is fine. -->
+<script src="firebase-config.local.js"></script>
 <body>
     <header>
         <div class="title-container">
-            <h1 class="how-to-use-title">
+            <h1 class="how-to-use-title" style="font-size: 2rem;">
                 <span class="material-icons">park</span>
                 How to Use Grove Guardian
                 <span class="material-icons">park</span>
@@ -37,6 +40,17 @@
             <p>Young trees need regular watering for the first two years after planting. Your participation helps ensure their survival and contributes to a greener, healthier community.</p>
         </div>
 
+        <h3>How to Water Trees</h3>
+        <ol>
+            <li>Check the homepage for the current watering recommendation from Casey Trees.</li>
+            <li>Look for trees marked as thirsty 😫 in either your Grove or the Thirsty Trees section.</li>
+            <li>Use the interactive map to locate the tree.</li>
+            <li>Find the nearest water source - look for the blue water droplet icons 💧 on the map which indicate hose locations.</li>
+            <li>Fill the tree's watering bag completely - this ensures proper deep watering of the roots.</li>
+            <li>After watering, slide the watering confirmation slider to record your contribution.</li>
+            <li>Please remember to neatly wrap up the hose when you're finished to keep our community tidy and prevent tripping hazards.</li>
+        </ol>
+
         <h3>Key Features</h3>
         <ul class="feature-list">
             <li class="feature-item">
@@ -57,24 +71,14 @@
                 <span class="material-icons">warning</span>
                 <div class="feature-content">
                     <h4>Thirsty Trees</h4>
-                    <p>Trees are marked as "Needs water now!" 😫 if they haven't been watered in:
-                        <ul>
-                            <li>Over 7 days during "Must Water" periods.</li>
-                            <li>Over 10 days during "Optional" watering periods.</li>
-                        </ul>
-                    </p>
+                    <p>Trees are marked with different levels of thirst (e.g., "Needs water now!" 😫) depending on when they were last watered and recent weather conditions, including rainfall.</p>
                 </div>
             </li>
             <li class="feature-item">
                 <span class="material-icons">timelapse</span>
                 <div class="feature-content">
                     <h4>Water Soon Reminders</h4>
-                    <p>Trees that will need attention soon are marked with "Water within 3 days" 💧 if they haven't been watered in:
-                        <ul>
-                            <li>4-6 days during "Must Water" periods.</li>
-                            <li>4-9 days during "Optional" watering periods.</li>
-                        </ul>
-                    </p>
+                    <p>Trees that will need attention soon are marked (e.g., "Water within 3 days" 💧) based on their watering history and anticipated rainfall, helping you plan ahead.</p>
                 </div>
             </li>
             <li class="feature-item">
@@ -92,17 +96,6 @@
                 </div>
             </li>
         </ul>
-
-        <h3>How to Water Trees</h3>
-        <ol>
-            <li>Check the homepage for the current watering recommendation from Casey Trees.</li>
-            <li>Look for trees marked as thirsty 😫 in either your Grove or the Thirsty Trees section.</li>
-            <li>Use the interactive map to locate the tree.</li>
-            <li>Find the nearest water source - look for the blue water droplet icons 💧 on the map which indicate hose locations.</li>
-            <li>Fill the tree's watering bag completely - this ensures proper deep watering of the roots.</li>
-            <li>After watering, slide the watering confirmation slider to record your contribution.</li>
-            <li>Please remember to neatly wrap up the hose when you're finished to keep our community tidy and prevent tripping hazards.</li>
-        </ol>
     </div>
 
     <footer>

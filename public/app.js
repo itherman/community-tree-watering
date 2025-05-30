@@ -10,7 +10,7 @@ import { calculateTreeWateringStatus, TREE_WATERING_STATUSES } from './treeUtils
 
 // App version information
 const APP_VERSION = {
-    number: '1.0.3',
+    number: '1.1.0',
     name: 'Grove Guardian',
     lastUpdated: '2025-05-20'
 };
@@ -66,80 +66,193 @@ async function initializeFirestoreIfNeeded() {
 const anonCreateUser = async () => {
     try {
         const userCredential = await signInAnonymously(auth);
-        const user = userCredential.user;
+        // const user = userCredential.user; // user variable is not used, can be removed if not needed elsewhere later
         
-        // Initialize Firestore if needed
-        const initialData = await initializeFirestoreIfNeeded();
+        // Initialize Firestore if needed, but DO NOT display its result directly here.
+        await initializeFirestoreIfNeeded(); 
         
-        // Display the initial/existing data
-        await displayWateringAlert(initialData);
-        
-        // Then try to get fresh data
+        // getAndUpdateWateringAlert will now handle all data fetching, the single final display,
+        // and the subsequent call to loadTrees with the correct forecastContext.
         await getAndUpdateWateringAlert();
         
-        // Load the trees based on the alert status
-        await loadTrees();
+        // DO NOT call loadTrees() here again. It's called at the end of getAndUpdateWateringAlert.
+        // await loadTrees(); // This was the redundant call causing the flash.
+
     } catch (error) {
         console.error("Error in initialization:", error);
         if (treeListDiv) treeListDiv.innerHTML = '<p>Error initializing application. Please try refreshing the page.</p>';
+        // Also ensure loading animation is hidden on critical init error
+        const wateringRecommendationDiv = document.getElementById('watering-recommendation');
+        const loadingContainer = wateringRecommendationDiv ? wateringRecommendationDiv.querySelector('.loading-container') : null;
+        if (loadingContainer) loadingContainer.classList.remove('active');
+        const titleElement = wateringRecommendationDiv ? wateringRecommendationDiv.querySelector('h2') : null;
+        if (titleElement) titleElement.style.display = 'block'; 
     }
 };
 
 // Function to get watering alert with timeout
 async function getAndUpdateWateringAlert() {
+    // Ensure loading animation is visible until final decision
+    const wateringRecommendationDiv = document.getElementById('watering-recommendation');
+    const loadingContainer = wateringRecommendationDiv ? wateringRecommendationDiv.querySelector('.loading-container') : null;
+    if (loadingContainer && !loadingContainer.classList.contains('active')) {
+        // This is a failsafe; usually it's set active in HTML or by other logic.
+        // We might want to ensure it becomes active here if not already.
+    }
+
+    let finalAlertDataToDisplay = null;
+    let alertSourceForLogging = 'init';
+    let forecastContext = null; // Initialize forecastContext
+
     try {
         if (!db) {
             throw new Error('Firestore database not initialized!');
         }
 
-        // First try to get existing alert from Firestore
-        const alertDocRef = doc(db, 'site_config', 'watering_alert');
-        
-        // Create a promise that resolves after 10 seconds
-        const timeoutPromise = new Promise((resolve) => {
-            setTimeout(() => resolve('timeout'), 10000);
-        });
+        const mainAlertDocRef = doc(db, 'site_config', 'watering_alert');
+        const weatherRecDocRef = doc(db, 'site_config', 'daily_weather_recommendation');
 
-        // Race between Firestore fetch and timeout
-        const alertDocPromise = getDoc(alertDocRef);
-        const result = await Promise.race([alertDocPromise, timeoutPromise]);
-        
-        let shouldFetchFromCaseyTrees = true;
-        
-        if (result === 'timeout') {
-            console.warn('Firestore taking longer than expected...');
-            // Continue waiting for the actual result
-            const alertDoc = await alertDocPromise;
-            if (alertDoc.exists()) {
-                const data = alertDoc.data();
-                await displayWateringAlert(data);
-                shouldFetchFromCaseyTrees = isDataStale(data.lastUpdated);
-            }
-        } else if (result.exists()) {
-            const data = result.data();
-            await displayWateringAlert(data);
-            shouldFetchFromCaseyTrees = isDataStale(data.lastUpdated);
-        }
+        const [mainAlertSnap, weatherRecSnap] = await Promise.all([
+            getDoc(mainAlertDocRef),
+            getDoc(weatherRecDocRef)
+        ]);
 
-        // If data is stale (>24h old) or doesn't exist, fetch fresh data from Casey Trees
-        if (shouldFetchFromCaseyTrees) {
-            try {
-                await fetchAndStoreCaseyTreesAlert();
-            } catch (fetchError) {
-                console.error("Error fetching from Casey Trees:", fetchError);
-                // Keep displaying the current data, just log the error
+        // --- Start Decision Logic ---
+
+        // Priority 1: Admin Override
+        if (mainAlertSnap.exists()) {
+            const mainAlert = mainAlertSnap.data();
+            if (mainAlert.source === 'admin_override' && mainAlert.overrideUntil && mainAlert.overrideUntil.toDate() > new Date()) {
+                finalAlertDataToDisplay = mainAlert;
+                alertSourceForLogging = 'admin_override';
             }
         }
-        
+
+        // Priority 2: Casey Trees "Don't Water" (if no active admin override)
+        if (!finalAlertDataToDisplay && mainAlertSnap.exists()) {
+            const mainAlert = mainAlertSnap.data();
+            const isCaseyTreesSource = mainAlert.source === 'https://caseytrees.org/water/' || mainAlert.source === 'default';
+            if (isCaseyTreesSource && mainAlert.status === "Don't Water" && !isDataStale(mainAlert.lastUpdated)) {
+                finalAlertDataToDisplay = mainAlert;
+                alertSourceForLogging = 'casey_trees_recent_dont_water';
+            }
+        }
+
+        // Priority 3: Daily Weather Recommendation (if no decision yet)
+        if (!finalAlertDataToDisplay && weatherRecSnap.exists()) {
+            const wrData = weatherRecSnap.data();
+            const weatherLastUpdated = wrData.lastUpdated ? wrData.lastUpdated.toDate() : null;
+            if (weatherLastUpdated) {
+                const hoursSinceUpdate = (new Date() - weatherLastUpdated) / (1000 * 60 * 60);
+                if (hoursSinceUpdate <= 30) { // Fresh if updated in last 30 hours
+                    finalAlertDataToDisplay = wrData;
+                    alertSourceForLogging = 'weather_function';
+                    // EXTRACT FORECAST CONTEXT for tree list logic
+                    if (wrData.processedWeatherData) {
+                        forecastContext = {}; // Initialize as an object
+                        if (typeof wrData.processedWeatherData.forecast3DaysRainMM === 'number') {
+                            forecastContext.rainInNext3DaysInches = wrData.processedWeatherData.forecast3DaysRainMM / 25.4;
+                        }
+                        if (typeof wrData.processedWeatherData.past2DaysRainMM === 'number') {
+                            forecastContext.rainInLast2DaysInches = wrData.processedWeatherData.past2DaysRainMM / 25.4;
+                        }
+                    }
+                } else {
+                    console.log('Info: Daily weather recommendation is stale (', hoursSinceUpdate.toFixed(1), 'hours old).');
+                }
+            }
+        }
+
+        // Priority 4: Fallback to Casey Trees (scrape or use existing if not decided)
+        if (!finalAlertDataToDisplay) {
+            console.log('Info: No overriding status determined yet. Evaluating Casey Trees status/scrape.');
+            let shouldFetchFromCaseyTrees = false;
+
+            if (mainAlertSnap.exists()) {
+                const mainAlert = mainAlertSnap.data();
+                if (mainAlert.source === 'automation_requested') {
+                    shouldFetchFromCaseyTrees = true;
+                    alertSourceForLogging = 'casey_trees_automation_request';
+                } else if (mainAlert.source === 'admin_override' && mainAlert.overrideUntil && mainAlert.overrideUntil.toDate() <= new Date()) { // Expired admin override
+                    shouldFetchFromCaseyTrees = true;
+                    alertSourceForLogging = 'casey_trees_expired_admin_override';
+                } else if (isDataStale(mainAlert.lastUpdated)) {
+                    shouldFetchFromCaseyTrees = true;
+                    alertSourceForLogging = 'casey_trees_stale_data';
+                } else {
+                    finalAlertDataToDisplay = mainAlert;
+                    alertSourceForLogging = 'existing_fresh_casey_trees_non_dont_water';
+                }
+            } else { // No main watering_alert doc at all
+                shouldFetchFromCaseyTrees = true;
+                alertSourceForLogging = 'casey_trees_no_prior_data';
+            }
+
+            if (shouldFetchFromCaseyTrees) {
+                console.log(`Action: Proceeding to fetch from Casey Trees. Reason: ${alertSourceForLogging}`);
+                try {
+                    // fetchAndStoreCaseyTreesAlert will update mainAlertDocRef and return the alert data.
+                    // It no longer calls displayWateringAlert internally.
+                    finalAlertDataToDisplay = await fetchAndStoreCaseyTreesAlert();
+                    // Ensure source is correctly attributed if fetch was successful
+                    alertSourceForLogging = finalAlertDataToDisplay.source || 'casey_trees_fetched'; 
+                } catch (fetchError) {
+                    console.error("Error fetching from Casey Trees:", fetchError);
+                    finalAlertDataToDisplay = {
+                        status: "Optional",
+                        details: "Unable to fetch latest watering status. Please check trees manually.",
+                        lastUpdated: Timestamp.now(),
+                        source: 'fetch_error_default_final'
+                    };
+                    alertSourceForLogging = 'fetch_error_default_final';
+                }
+            }
+        }
+
+        // --- End Decision Logic ---
+
+        // Final Display (if not handled by fetchAndStoreCaseyTreesAlert)
+        if (finalAlertDataToDisplay) {
+            await displayWateringAlert(finalAlertDataToDisplay);
+        } else {
+            // Ultimate fallback if absolutely no data could be determined and fetch wasn't attempted or failed to set finalAlertDataToDisplay
+            console.log('CRITICAL FALLBACK: No watering status could be determined by any means. Displaying failsafe default.');
+            finalAlertDataToDisplay = {
+                status: "Optional",
+                details: "Watering status could not be determined. Check trees manually.",
+                lastUpdated: Timestamp.now(),
+                source: 'failsafe_default_final'
+            };
+            await displayWateringAlert(finalAlertDataToDisplay);
+        }
+
     } catch (error) {
-        console.error("Error in getAndUpdateWateringAlert:", error);
+        console.error("Critical error in getAndUpdateWateringAlert wrapper:", error);
+        // Ensure loading animation is hidden even on critical error before displaying final fallback
+        if (loadingContainer) loadingContainer.classList.remove('active');
+        const titleElement = wateringRecommendationDiv ? wateringRecommendationDiv.querySelector('h2') : null;
+        if (titleElement) titleElement.style.display = 'block'; // Ensure title is visible for error message
+
         await displayWateringAlert({
             status: "Optional",
-            details: "Unable to fetch watering status. Please check trees for signs of needing water.",
+            details: "System error encountered. Please check trees for watering needs.",
             lastUpdated: Timestamp.now(),
-            source: 'default'
+            source: 'critical_error_default'
         });
     }
+    // After the main alert is decided and potentially displayed, load trees with context
+    // currentWateringRecommendation is set globally by displayWateringAlert
+    // We need to ensure loadTrees is called *after* the display logic that sets currentWateringRecommendation
+    // or pass currentWateringRecommendation explicitly if displayWateringAlert isn't called (e.g. fetch path)
+    // For simplicity, assuming displayWateringAlert has set currentWateringRecommendation globally.
+    // However, fetchAndStoreCaseyTreesAlert also sets it. This should be okay.
+    // If finalAlertDataToDisplay was set, currentWateringRecommendation is from it.
+    // If fetchAndStoreCaseyTreesAlert was called, it set currentWateringRecommendation.
+
+    // Ensure loadTrees is called AFTER the alert display logic has potentially run.
+    // The global currentWateringRecommendation will be set by displayWateringAlert.
+    // If fetchAndStoreCaseyTreesAlert was called, it also sets currentWateringRecommendation before returning.
+    await loadTrees(forecastContext); // Pass forecastContext to loadTrees
 }
 
 // Helper function to check if data is stale (older than 24 hours)
@@ -215,8 +328,9 @@ async function fetchAndStoreCaseyTreesAlert() {
     
     try {
         const alertDocRef = doc(db, 'site_config', 'watering_alert');
-        await setDoc(alertDocRef, alertData);
-        await displayWateringAlert(alertData);
+        await setDoc(alertDocRef, alertData); // Store in Firestore
+        // await displayWateringAlert(alertData); // DO NOT call displayWateringAlert here
+        return alertData; // Return the data so getAndUpdateWateringAlert can handle display
     } catch (error) {
         console.error("Error storing in Firestore:", error);
         throw error;
@@ -268,23 +382,56 @@ async function displayWateringAlert(alertData) {
     const metaDataElement = document.getElementById('alert-meta-data');
 
     if (detailsElement) {
-        const effectiveDateText = `Effective: ${getCurrentWeekDateRange()}`;
-        detailsElement.textContent = effectiveDateText;
+        // Use the details from alertData if provided, otherwise default to effective date.
+        // The weather function and admin override provide their own details.
+        let displayDetails = alertData.details || `Effective: ${getCurrentWeekDateRange()}`;
+        // If the source is Casey Trees default and no specific details, use the effective date.
+        if (alertData.source === 'default' && !alertData.details) {
+             displayDetails = `Effective: ${getCurrentWeekDateRange()}`;
+        } else if (alertData.source === 'https://caseytrees.org/water/' && !alertData.details) {
+            // If from Casey Trees scrape and details are minimal/not parsed, also show effective date.
+            displayDetails = alertData.details || `Effective: ${getCurrentWeekDateRange()}`;
+        }
+        detailsElement.textContent = displayDetails;
     }
 
     if (metaDataElement) {
-        let metaHTML = 'Source: <a href="https://caseytrees.org/water/" target="_blank" rel="noopener noreferrer">Casey Trees</a>';
+        let sourceName = 'Casey Trees';
+        let sourceUrl = 'https://caseytrees.org/water/';
+
+        if (alertData.source === 'weather_function_v2') {
+            sourceName = 'Open-Meteo';
+            sourceUrl = 'https://open-meteo.com/';
+            // Details are already set from alertData.details from the function
+        } else if (alertData.source === 'admin_override') {
+            sourceName = 'Admin Override';
+            sourceUrl = '#'; // No specific link for admin override
+        } else if (alertData.source && alertData.source.startsWith('fetch_error')) {
+            sourceName = 'System Alert';
+            sourceUrl = '#';
+        } else if (alertData.source && alertData.source.startsWith('failsafe')) {
+            sourceName = 'System Alert';
+            sourceUrl = '#';
+        } else if (alertData.source && alertData.source.startsWith('critical_error')) {
+            sourceName = 'System Error';
+            sourceUrl = '#';
+        }
+        // Default remains Casey Trees if not explicitly weather_function_v2 or admin_override
+
+        let metaHTML = sourceUrl !== '#' ? 
+            `Source: <a href="${sourceUrl}" target="_blank" rel="noopener noreferrer">${sourceName}</a>` : 
+            `Source: ${sourceName}`;
+            
         const lastUpdated = alertData.lastUpdated?.toDate();
         if (lastUpdated) {
             metaHTML += ` <span class="meta-separator">|</span> Last updated: ${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
         }
         metaDataElement.innerHTML = metaHTML;
-        // Styling is primarily handled by .alert-meta class in CSS
     }
 }
 
 // --- Load and Display Thirsty Trees Only ---
-async function loadTrees() {
+async function loadTrees(forecastContext = null) {
     const startTime = Date.now();
     
     if (!db) {
@@ -330,50 +477,40 @@ async function loadTrees() {
 
         // New helper function to centralize display logic for tree statuses
         function getTreeDisplayDetails(statusConstant) {
-            let rawMessage = "";
-            // cssClassKey will be like "thirsty", "water-soon", derived from statusConstant
-            let cssClassKey = ""; 
-
             switch (statusConstant) {
-                case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
-                    rawMessage = "😫 New tree, needs water!";
-                    // Visually treat as thirsty, so use THIRSTY's CSS key
-                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.THIRSTY);
-                    break;
                 case TREE_WATERING_STATUSES.THIRSTY:
-                    rawMessage = "😫 Needs water now!";
-                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.THIRSTY);
-                    break;
+                    return { message: '💧 Water within 1 day', cssClassKey: 'thirsty' };
                 case TREE_WATERING_STATUSES.WATER_SOON:
-                    rawMessage = "💧 Water within 3 days"; // User's preference (no period)
-                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.WATER_SOON);
-                    break;
-                case TREE_WATERING_STATUSES.NEVER_WATERED_OKAY:
-                    rawMessage = "New tree, conditions good.";
-                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.OKAY);
-                    break;
+                    return { message: '💧 Water within 3 days', cssClassKey: 'water-soon' };
                 case TREE_WATERING_STATUSES.OKAY:
-                    rawMessage = ""; // No specific message for "Okay"
-                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.OKAY);
-                    break;
+                    return { message: '✔️ OK for now', cssClassKey: 'okay' };
                 case TREE_WATERING_STATUSES.DONT_WATER:
-                    rawMessage = ""; // No specific message for "Don't Water"
-                    // Visually treat as Okay for general styling if needed
-                    cssClassKey = getStatusCssClass(TREE_WATERING_STATUSES.OKAY); 
-                    break;
+                    return { message: '🛑 Do NOT water', cssClassKey: 'dont-water' };
+                case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
+                    return { message: '⚠️ New tree, needs water!', cssClassKey: 'thirsty' }; // Visually same as thirsty
+                case TREE_WATERING_STATUSES.NEVER_WATERED_OKAY:
+                    return { message: '✔️ New tree, OK for now', cssClassKey: 'okay' };
+                case TREE_WATERING_STATUSES.OKAY_RAIN_EXPECTED:
+                    return { message: '🌧️ Rain expected soon, OK', cssClassKey: 'okay-rain-expected' };
+                case TREE_WATERING_STATUSES.NEVER_WATERED_RAIN_EXPECTED:
+                    return { message: '🌧️ New tree, rain expected', cssClassKey: 'okay-rain-expected' }; // Same class as OKAY_RAIN_EXPECTED
+                // NEWLY ADDED STATUSES
+                case TREE_WATERING_STATUSES.THIRSTY_RAIN_EXPECTED:
+                    return { message: '💧 Rain expected, but still thirsty!', cssClassKey: 'thirsty-rain-expected' }; 
+                case TREE_WATERING_STATUSES.WATER_SOON_RAIN_EXPECTED:
+                    return { message: '💧 Rain expected, but water soon', cssClassKey: 'water-soon-rain-expected' };
+                case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION_RAIN_EXPECTED:
+                    return { message: '⚠️ Rain expected, new tree needs water!', cssClassKey: 'thirsty-rain-expected' }; // Visually similar to thirsty
                 default:
-                    // Fallback for any unknown status
-                    rawMessage = "";
-                    cssClassKey = "unknown";
+                    console.warn('Unknown tree status:', statusConstant);
+                    return { message: 'Status unknown', cssClassKey: 'unknown' };
             }
-            // Return the original statusConstant as well, as it's useful for logic
-            return { rawMessage, cssClassKey, statusConstant };
         }
 
         // Renamed function: Determines the watering status of a tree
         const getTreeWateringStatus = (tree) => {
-            // Delegate to the centralized utility function
-            return calculateTreeWateringStatus(tree, 'lastWateredDate', currentWateringRecommendation);
+            // Delegate to the centralized utility function, now passing forecastContext
+            return calculateTreeWateringStatus(tree, 'lastWateredDate', currentWateringRecommendation, forecastContext);
         };
 
         // --- MY GROVE SECTION ---
@@ -402,19 +539,18 @@ async function loadTrees() {
                     const displayDetails = getTreeDisplayDetails(wateringStatusResult); // Use new helper
                     
                     let statusMessageHTML = '';
-                    if (displayDetails.rawMessage) {
-                        statusMessageHTML = `<span class="tree-status-message ${displayDetails.cssClassKey}">${displayDetails.rawMessage}</span>`;
+                    if (displayDetails.message) {
+                        statusMessageHTML = `<span class="tree-status-message ${displayDetails.cssClassKey}">${displayDetails.message}</span>`;
                     }
 
                     let itemClass = 'grove'; 
-                    // Determine if an alert class should be added based on the status
-                    switch (displayDetails.statusConstant) {
-                        case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
-                        case TREE_WATERING_STATUSES.THIRSTY:
-                        case TREE_WATERING_STATUSES.WATER_SOON:
-                            itemClass += ` ${displayDetails.cssClassKey}-alert`;
-                            break;
-                        // Other statuses (OKAY, DONT_WATER, NEVER_WATERED_OKAY) don't get an alert class here
+                    // Determine if an alert class should be added based on the status cssClassKey
+                    if (displayDetails.cssClassKey === 'thirsty' || displayDetails.cssClassKey === 'thirsty-rain-expected') {
+                        itemClass += ' thirsty-alert';
+                    } else if (displayDetails.cssClassKey === 'water-soon' || displayDetails.cssClassKey === 'water-soon-rain-expected') {
+                        itemClass += ' water-soon-alert';
+                    } else if (displayDetails.cssClassKey === 'okay-rain-expected') {
+                        itemClass += ' okay-rain-expected-alert';
                     }
 
                     myGroveHTML += `
@@ -464,29 +600,36 @@ async function loadTrees() {
 
             let listItemHTML = '';
             let listToAdd = null;
+            let liItemAlertClass = ''; // To store thirsty-alert or water-soon-alert
 
-            // Determine which list the tree belongs to, based on its statusConstant
-            switch (displayDetails.statusConstant) {
-                case TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION:
-                case TREE_WATERING_STATUSES.THIRSTY:
+            // Determine which list the tree belongs to and its LI alert class
+            switch (displayDetails.cssClassKey) {
+                case 'thirsty':
+                case 'thirsty-rain-expected': // Covers NEVER_WATERED_NEEDS_ATTENTION_RAIN_EXPECTED if its cssClassKey is 'thirsty-rain-expected'
                     listToAdd = 'thirsty';
+                    liItemAlertClass = 'thirsty-alert';
                     break;
-                case TREE_WATERING_STATUSES.WATER_SOON:
+                case 'water-soon':
+                case 'water-soon-rain-expected':
                     listToAdd = 'waterSoon';
+                    liItemAlertClass = 'water-soon-alert';
                     break;
-                // For OKAY, DONT_WATER, NEVER_WATERED_OKAY, tree is not added to these general lists.
+                case 'okay-rain-expected': // Add this for general lists, though it won't be added to thirsty/waterSoon lists
+                    liItemAlertClass = 'okay-rain-expected-alert'; // This won't be used by current list logic but good for consistency
+                    // No listToAdd for okay statuses in general lists
+                    return;
                 default:
-                    return; // Skip this tree if it doesn't fall into thirsty or waterSoon categories
+                    // Skip this tree if it doesn't fall into an actionable category for general lists
+                    // This includes 'okay', 'dont-water', etc.
+                    return; 
             }
 
             if (listToAdd) {
-                // displayDetails.rawMessage contains the text with emoji
-                // displayDetails.cssClassKey is the base for class names (e.g., "thirsty", "water-soon")
                 listItemHTML = `
-                    <li class="tree-item ${displayDetails.cssClassKey}-alert" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
+                    <li class="tree-item ${liItemAlertClass}" onclick="window.location.href='hoa_trees_map.html?treeId=${treeId}'">
                         <div class="tree-info">
                             <strong>${tree.commonName || 'Unknown Tree'}</strong>
-                            <span class="tree-status-message ${displayDetails.cssClassKey}">${displayDetails.rawMessage}</span>
+                            <span class="tree-status-message ${displayDetails.cssClassKey}">${displayDetails.message}</span>
                             <span class="last-watered">Last watered: ${lastWateredDateStr}</span>
                         </div>
                     </li>
@@ -521,10 +664,13 @@ async function loadTrees() {
                 const treeData = querySnapshot.docs.find(d => d.id === id)?.data();
                 if (!treeData) return false;
                 const status = getTreeWateringStatus(treeData);
-                // Updated logic to use TREE_WATERING_STATUSES
+                // Updated logic to use TREE_WATERING_STATUSES constants directly for clarity
                 return status === TREE_WATERING_STATUSES.THIRSTY || 
                        status === TREE_WATERING_STATUSES.WATER_SOON || 
-                       status === TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION;
+                       status === TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION ||
+                       status === TREE_WATERING_STATUSES.THIRSTY_RAIN_EXPECTED ||
+                       status === TREE_WATERING_STATUSES.WATER_SOON_RAIN_EXPECTED ||
+                       status === TREE_WATERING_STATUSES.NEVER_WATERED_NEEDS_ATTENTION_RAIN_EXPECTED;
             });
         }
 

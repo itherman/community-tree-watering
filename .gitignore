@@ -63,7 +63,10 @@ node_modules/
 .yarn-integrity
 
 # dotenv environment variables file
-.env
+.env.local
 
 # dataconnect generated files
 .dataconnect
+
+# local development firebase config
+public/firebase-config.local.js
